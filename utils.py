@@ -63,16 +63,31 @@ class TextClassificationDataset(Dataset):
 
         with Pool(args.n_workers) as pool:
             self.data = pool.map(self.map_csv, self.data)
+    
+    def _add_spl_ids_and_pad(self, input_ids, maxlen=128):
+        if len(input_ids) > maxlen-2:
+            input_ids = [self.tokenizer.cls_token_id] + \
+                    input_ids[:maxlen-2] + [self.tokenizer.sep_token_id]
+            return input_ids
+        
+        output = [self.tokenizer.cls_token_id]
+        output.extend(input_ids)
+        output.append(self.tokenizer.sep_token_id)
+        padding = [0]*(maxlen-len(output))
+        output.extend(padding)
+        
+        return output
 
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, idx):
         label, input_id = self.data[idx]
-        input_id, mask = pad_to_max_len([input_id])
-        input_id = input_id[0]
-        mask = mask[0]
-        return input_id, mask, label
+        padded_input_id = self._add_spl_ids_and_pad(input_id)
+        # Create attention mask
+        # Create a mask of 1s for each token followed by 0s for padding
+        mask = [int(i != self.tokenizer.pad_token_id) for i in padded_input_id]
+        return torch.tensor(padded_input_id), torch.tensor(mask), torch.tensor(label)
 
     def map_csv(self, row):
         context = '[CLS]' + ' '.join(row[1:])[:self.max_len-2] + '[SEP]'

@@ -1,5 +1,5 @@
 from pytorch_transformers import AdamW, WarmupLinearSchedule
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, SequentialSampler
 import logging
 import numpy as np
 import os
@@ -17,7 +17,9 @@ from utils import dynamic_collate_fn, prepare_inputs
 
 
 def query_neighbors(task_id, args, memory, test_dataset):
-    test_dataloader = DataLoader(test_dataset, num_workers=args.n_workers)  #, collate_fn=dynamic_collate_fn,
+    test_sampler = SequentialSampler(test_dataset)
+    test_dataloader = DataLoader(test_dataset, num_workers=args.n_workers, 
+            batch_size=args.batch_size, sampler=test_sampler)  #, collate_fn=dynamic_collate_fn,
                                  # batch_sampler=DynamicBatchSampler(test_dataset, args.batch_size * 4))
 
 
@@ -41,7 +43,10 @@ def train_task(args, model, memory, train_dataset, valid_dataset):
     # train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, num_workers=args.n_workers,
     #                               shuffle=not args.reproduce, collate_fn=dynamic_collate_fn)
     # bp()
-    train_dataloader = DataLoader(train_dataset, num_workers=args.n_workers) # , collate_fn=dynamic_collate_fn,
+    train_sampler = SequentialSampler(train_dataset)
+    train_dataloader = DataLoader(train_dataset, num_workers=args.n_workers, 
+            batch_size=args.batch_size,
+            sampler=train_sampler) # , collate_fn=dynamic_collate_fn,
                                   # batch_sampler=DynamicBatchSampler(train_dataset, args.batch_size))
     # if valid_dataset:
     #     valid_dataloader = DataLoader(valid_dataset, batch_size=args.batch_size * 6,
@@ -63,7 +68,6 @@ def train_task(args, model, memory, train_dataset, valid_dataset):
         optimizer.step()
         scheduler.step()
         model.zero_grad()
-
     for step, batch in enumerate(train_dataloader):
         model.train()
         n_inputs, input_ids, masks, labels = prepare_inputs(batch)
