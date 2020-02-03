@@ -38,7 +38,7 @@ def query_neighbors(task_id, args, memory, test_dataset):
     pickle.dump(q_labels, open(os.path.join(args.output_dir, 'q_labels-{}'.format(task_id)), 'wb'))
 
 
-def train_task(args, model, memory, train_dataset, valid_dataset):
+def train_task(args, model, memory, train_dataset, valid_dataset, optimizer, scheduler):
 
     # train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, num_workers=args.n_workers,
     #                               shuffle=not args.reproduce, collate_fn=dynamic_collate_fn)
@@ -51,13 +51,6 @@ def train_task(args, model, memory, train_dataset, valid_dataset):
     # if valid_dataset:
     #     valid_dataloader = DataLoader(valid_dataset, batch_size=args.batch_size * 6,
     #                                   num_workers=args.n_workers, collate_fn=dynamic_collate_fn)
-    no_decay = ['bias', 'LayerNorm.weight']
-    optimizer_grouped_parameters = [
-        {'params': [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)], 'weight_decay': args.weight_decay},
-        {'params': [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
-    ]
-    optimizer = AdamW(optimizer_grouped_parameters, lr=args.learning_rate, eps=args.adam_epsilon)
-    scheduler = WarmupLinearSchedule(optimizer, warmup_steps=args.warmup_steps, t_total=len(train_dataset)//10)
 
     model.zero_grad()
     tot_epoch_loss, tot_n_inputs = 0, 0
@@ -97,7 +90,6 @@ def train_task(args, model, memory, train_dataset, valid_dataset):
             update_parameters(loss)
 
     logger.info("Finsih training, avg loss: {:.3f}".format(tot_epoch_loss/tot_n_inputs))
-    del optimizer, optimizer_grouped_parameters
     assert tot_n_inputs == len(train_dataset) == args.n_train
 
 
@@ -117,6 +109,15 @@ def main():
     model = model_class.from_pretrained(args.model_name, config=model_config).cuda()
     memory = Memory(args)
 
+    no_decay = ['bias', 'LayerNorm.weight']
+    optimizer_grouped_parameters = [
+        {'params': [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)], 'weight_decay': args.weight_decay},
+        {'params': [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
+    ]
+    optimizer = AdamW(optimizer_grouped_parameters, lr=args.learning_rate, eps=args.adam_epsilon)
+    scheduler = WarmupLinearSchedule(optimizer, warmup_steps=args.warmup_steps, 
+            t_total=args.n_train * len(args.tasks)//10)
+
     for task_id, task in enumerate(args.tasks):
         logger.info("Start parsing {} train data...".format(task))
         train_dataset = TextClassificationDataset(task, "train", args, tokenizer)
@@ -128,12 +129,13 @@ def main():
             valid_dataset = None
 
         logger.info("Start training {}...".format(task))
-        train_task(args, model, memory, train_dataset, valid_dataset)
+        train_task(args, model, memory, train_dataset, valid_dataset, optimizer, scheduler)
         model_save_path = os.path.join(args.output_dir, 'checkpoint-{}'.format(task_id))
         torch.save(model.state_dict(), model_save_path)
         pickle.dump(memory, open(os.path.join(args.output_dir, 'memory-{}'.format(task_id)), 'wb'))
 
 
+    del optimizer, optimizer_grouped_parameters
     del model
     memory.build_tree()
 

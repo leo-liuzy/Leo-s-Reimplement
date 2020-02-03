@@ -63,7 +63,7 @@ class TextClassificationDataset(Dataset):
 
         with Pool(args.n_workers) as pool:
             self.data = pool.map(self.map_csv, self.data)
-    
+
     def _add_spl_ids_and_pad(self, input_ids, maxlen=128):
         if len(input_ids) > maxlen-2:
             input_ids = [self.tokenizer.cls_token_id] + \

@@ -33,7 +33,7 @@ def parse_train_args():
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--learning_rate", type=float, default=3e-5)
-    parser.add_argument("--logging_steps", type=int, default=500)
+    parser.add_argument("--logging_steps", type=int, default=100)
     parser.add_argument("--max_grad_norm", type=float, default=1.0)
     parser.add_argument("--model_name", type=str, default="bert-base-uncased")
     parser.add_argument("--gpu_id", type=int, default=-1)
