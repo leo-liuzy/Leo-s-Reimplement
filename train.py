@@ -67,6 +67,7 @@ def train_task(args, model, memory, train_dataset, valid_dataset):
     for step, batch in enumerate(train_dataloader):
         model.train()
         n_inputs, input_ids, masks, labels = prepare_inputs(batch)
+        bp()
         memory.add(input_ids, masks, labels)
         loss = model(input_ids=input_ids, attention_mask=masks, labels=labels)[0]
         update_parameters(loss)
