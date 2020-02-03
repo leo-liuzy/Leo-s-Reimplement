@@ -9,6 +9,7 @@ from ipdb import set_trace as bp
 logger = logging.getLogger(__name__)
 logging.getLogger("pytorch_transformers").setLevel(logging.WARNING)
 
+
 from memory import Memory
 from settings import parse_train_args, model_classes, init_logging
 from utils import TextClassificationDataset, DynamicBatchSampler
@@ -16,8 +17,8 @@ from utils import dynamic_collate_fn, prepare_inputs
 
 
 def query_neighbors(task_id, args, memory, test_dataset):
-    test_dataloader = DataLoader(test_dataset, num_workers=args.n_workers, collate_fn=dynamic_collate_fn,
-                                 batch_sampler=DynamicBatchSampler(test_dataset, args.batch_size * 4))
+    test_dataloader = DataLoader(test_dataset, num_workers=args.n_workers)  #, collate_fn=dynamic_collate_fn,
+                                 # batch_sampler=DynamicBatchSampler(test_dataset, args.batch_size * 4))
 
 
     q_input_ids, q_masks, q_labels = [], [], []
@@ -73,8 +74,14 @@ def train_task(args, model, memory, train_dataset, valid_dataset):
         tot_epoch_loss += loss.item() * n_inputs
 
         if (step+1) % args.logging_steps == 0:
-            logger.info("progress: {:.2f} , step: {} , lr: {:.2E} , avg batch size: {:.1f} , avg loss: {:.3f}".format(
-                tot_n_inputs/args.n_train, step+1, scheduler.get_lr()[0], tot_n_inputs//(step+1), tot_epoch_loss/tot_n_inputs))
+            logger.info("progress: {:.2f} , "
+                        "step: {} , "
+                        "lr: {:.2E} , "
+                        "avg batch size: {:.1f} , "
+                        "avg loss: {:.3f}".format(tot_n_inputs/args.n_train,
+                                                  step+1, scheduler.get_lr()[0],
+                                                  tot_n_inputs//(step+1),
+                                                  tot_epoch_loss/tot_n_inputs))
 
         if args.replay_interval >= 1 and (step+1) % args.replay_interval == 0:
             torch.cuda.empty_cache()

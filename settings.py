@@ -37,7 +37,8 @@ def parse_train_args():
     parser.add_argument("--max_grad_norm", type=float, default=1.0)
     parser.add_argument("--model_name", type=str, default="bert-base-uncased")
     parser.add_argument("--gpu_id", type=int, default=-1)
-    parser.add_argument("--model_type", type=str, default="bert", help="Model type selected in the list: " + ", ".join(model_classes.keys()))
+    parser.add_argument("--model_type", type=str, default="bert",
+                        help="Model type selected in the list: " + ", ".join(model_classes.keys()))
     parser.add_argument("--n_labels", type=int, default=33)
     parser.add_argument("--n_neighbors", type=int, default=32)
     parser.add_argument("--n_test", type=int, default=7600)
