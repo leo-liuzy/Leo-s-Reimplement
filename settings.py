@@ -25,6 +25,7 @@ def set_device_id(args):
     args.device_id = GPUtil.getFirstAvailable(maxLoad=0.05, maxMemory=0.05)[0]
     torch.cuda.set_device(args.device_id)
 
+
 def parse_train_args():
     parser = argparse.ArgumentParser("Train Lifelong Language Learning")
 
@@ -35,6 +36,7 @@ def parse_train_args():
     parser.add_argument("--logging_steps", type=int, default=500)
     parser.add_argument("--max_grad_norm", type=float, default=1.0)
     parser.add_argument("--model_name", type=str, default="bert-base-uncased")
+    parser.add_argument("--gpu_id", type=int, default=-1)
     parser.add_argument("--model_type", type=str, default="bert", help="Model type selected in the list: " + ", ".join(model_classes.keys()))
     parser.add_argument("--n_labels", type=int, default=33)
     parser.add_argument("--n_neighbors", type=int, default=32)

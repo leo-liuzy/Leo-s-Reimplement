@@ -5,3 +5,4 @@ dbpedia_csv/
 yahoo_answers_csv/
 yelp_review_full_csv/
 output*/
+__pycache__/

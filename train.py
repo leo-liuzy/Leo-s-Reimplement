@@ -5,6 +5,7 @@ import numpy as np
 import os
 import pickle
 import torch
+from ipdb import set_trace as bp
 logger = logging.getLogger(__name__)
 logging.getLogger("pytorch_transformers").setLevel(logging.WARNING)
 
@@ -38,6 +39,7 @@ def train_task(args, model, memory, train_dataset, valid_dataset):
 
     # train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, num_workers=args.n_workers,
     #                               shuffle=not args.reproduce, collate_fn=dynamic_collate_fn)
+    bp()
     train_dataloader = DataLoader(train_dataset, num_workers=args.n_workers, collate_fn=dynamic_collate_fn,
                                   batch_sampler=DynamicBatchSampler(train_dataset, args.batch_size))
     # if valid_dataset:
