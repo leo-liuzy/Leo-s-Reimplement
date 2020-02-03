@@ -22,8 +22,11 @@ label_offsets = {
 
 
 def set_device_id(args):
-    args.device_id = GPUtil.getFirstAvailable(maxLoad=0.05, maxMemory=0.05)[0]
-    torch.cuda.set_device(args.device_id)
+    if args.gpu_id >= 0 and torch.cuda.is_available():
+        args.device_id = GPUtil.getFirstAvailable(maxLoad=0.05, maxMemory=0.05)[0]
+        torch.cuda.set_device(args.device_id)
+    else:
+        args.device_id = torch.device("cpu")
 
 
 def parse_train_args():
@@ -63,8 +66,11 @@ def parse_train_args():
         args.overwrite = True
 
     set_device_id(args)
+    if args.gpu_id < 0:
+        memory_size = 10989.0
+    else:
+        memory_size = GPUtil.getGPUs()[args.device_id].memoryTotal
 
-    memory_size = GPUtil.getGPUs()[args.device_id].memoryTotal
     if args.batch_size <= 0:
         args.batch_size = int(memory_size * 0.38)
 

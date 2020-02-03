@@ -14,6 +14,7 @@ def prepare_inputs(batch):
     input_ids, masks, labels = tuple(b.cuda() for b in batch)
     return batch[0].shape[0], input_ids, masks, labels
 
+
 def pad_to_max_len(input_ids, masks=None):
     max_len = max(len(input_id) for input_id in input_ids)
     masks = torch.tensor([[1]*len(input_id)+[0]*(max_len-len(input_id)) for input_id in input_ids], dtype=torch.long)
@@ -67,7 +68,11 @@ class TextClassificationDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, idx):
-        return self.data[idx]
+        label, input_id = self.data[idx]
+        input_id, mask = pad_to_max_len([input_id])
+        input_id = input_id[0]
+        mask = mask[0]
+        return input_id, mask, label
 
     def map_csv(self, row):
         context = '[CLS]' + ' '.join(row[1:])[:self.max_len-2] + '[SEP]'
