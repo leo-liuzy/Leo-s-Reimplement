@@ -8,6 +8,8 @@ import shutil
 import psutil
 import torch
 
+from ipdb import set_trace as bp
+
 model_classes = {
     'bert': (BertConfig, BertForSequenceClassification, BertTokenizer),
     # 'xlnet': (XLNetForSequenceClassification, XLNetTokenizer),
@@ -104,6 +106,7 @@ def parse_test_args():
     parser.add_argument("--no_fp16_test", action="store_true")
     parser.add_argument("--output_dir", type=str, default="output0")
     parser.add_argument("--gpu_id", type=int, default=-1)
+    parser.add_argument("--logging_steps", type=int, default=10)
 
     args = parser.parse_args()
     set_device_id(args)
