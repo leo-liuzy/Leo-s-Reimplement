@@ -62,7 +62,6 @@ def test_task(task_id, args, model, test_dataset):
         q_labels = pickle.load(open(os.path.join(args.output_dir, 'q_labels-{}'.format(task_id)), 'rb'))
 
         for i in range(len(test_dataset)):
-            bp()
             input_id, _, labels = test_dataset[i]
             input_id = input_id.unsqueeze(0).cuda()
             label = labels.unsqueeze(0).cuda()
