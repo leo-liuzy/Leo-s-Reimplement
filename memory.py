@@ -13,18 +13,20 @@ from settings import model_classes
 from utils import pad_to_max_len
 
 
-class Memory:
+class Memory(torch.nn.Module):
     def __init__(self, args):
+        super(Memory, self).__init__()
         self.n_neighbors = args.n_neighbors
         with torch.no_grad():
             logger.info("Initializing memory {} model".format(args.model_name))
-            self.model = BertModel.from_pretrained(args.model_name).cuda()
+            self.model = BertModel.from_pretrained(args.model_name).to(args.device)
             self.model.eval()
         self.hidden_size = self.model.config.hidden_size
         self.max_len = self.model.config.max_position_embeddings
         self.keys, self.input_ids, self.labels = [], [], []
         self.tree = NearestNeighbors(n_jobs=args.n_workers)
         self.built_tree = False
+        self.device = args.device
 
     def add(self, input_ids, masks, labels):
         if self.built_tree:
@@ -40,7 +42,6 @@ class Memory:
         self.labels.extend(labels.cpu().tolist())
         del outputs
 
-
     def sample(self, n_samples):
         if self.built_tree:
             logging.warning("Tree already build! Ignore sample.")
@@ -50,8 +51,7 @@ class Memory:
         labels = [self.labels[ind] for ind in inds]
         input_ids, masks = pad_to_max_len(input_ids)
         labels = torch.tensor(labels, dtype=torch.long)
-        return input_ids.cuda(), masks.cuda(), labels.cuda()
-
+        return input_ids.to(self.device), masks.to(self.device), labels.to(self.device)
 
     def build_tree(self):
         if self.built_tree:
@@ -62,7 +62,6 @@ class Memory:
         self.tree.fit(self.keys)
         self.input_ids = np.array(self.input_ids)
         self.labels = np.array(self.labels)
-
 
     def query(self, input_ids, masks):
         if not self.built_tree:

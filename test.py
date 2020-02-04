@@ -88,7 +88,6 @@ def test_task(task_id, args, model, test_dataset):
                     tot_n_inputs, len(test_dataset), cur_loss/tot_n_inputs, cur_acc/tot_n_inputs))
         assert tot_n_inputs == len(test_dataset)
 
-
     logger.info("test loss: {:.3f} , test acc: {:.3f}".format(
         cur_loss / len(test_dataset), cur_acc / len(test_dataset)))
     return cur_acc / len(test_dataset)

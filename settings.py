@@ -5,6 +5,7 @@ import datetime
 import logging
 import os
 import shutil
+import psutil
 import torch
 
 model_classes = {
@@ -22,8 +23,12 @@ label_offsets = {
 
 
 def set_device_id(args):
-    args.device_id = GPUtil.getFirstAvailable(maxLoad=0.05, maxMemory=0.05)[0]
-    torch.cuda.set_device(args.device_id)
+    if args.gpu_id >= 0 and torch.cuda.is_available():
+        args.device_id = GPUtil.getFirstAvailable(maxLoad=0.05, maxMemory=0.05)[args.gpu_id]
+        args.device = torch.device(f"cuda:{args.device_id}")
+    else:
+        args.device = torch.device("cpu")
+        args.device_id = -1
 
 
 def parse_train_args():
@@ -67,7 +72,10 @@ def parse_train_args():
     # if args.gpu_id < 0:
     #     memory_size = 10989.0
     # else:
-    memory_size = GPUtil.getGPUs()[args.device_id].memoryTotal
+    if args.device_id == -1:
+        memory_size = psutil.virtual_memory().available // 2 ** 20  # turn unit into MB
+    else:
+        memory_size = GPUtil.getGPUs()[args.device_id].memoryTotal
 
     if args.batch_size <= 0:
         args.batch_size = int(memory_size * 0.38)
@@ -95,6 +103,7 @@ def parse_test_args():
     parser.add_argument("--adapt_steps", type=int, default=30)
     parser.add_argument("--no_fp16_test", action="store_true")
     parser.add_argument("--output_dir", type=str, default="output0")
+    parser.add_argument("--gpu_id", type=int, default=-1)
 
     args = parser.parse_args()
     set_device_id(args)

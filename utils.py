@@ -41,15 +41,14 @@ class TextClassificationDataset(Dataset):
         self.valid_ratio = args.valid_ratio
 
         self.data = []
-        self.label_offset = label_offsets[task.split('/')[-1]]
+        self.label_offset = label_offsets[task.split(' ')[-1]]
         if self.mode == "test":
             self.fname = os.path.join(task, "test.csv")
         elif self.mode in ["train", "valid"]:
             self.fname = os.path.join(task, "train.csv")
 
         with open(self.fname, 'r', encoding='utf-8') as f:
-            reader = csv.reader(f, delimiter=',', quotechar='"')
-            for row in reader:
+            for row in csv.reader(f, delimiter=',', quotechar='"'):
                 self.data.append(row)
 
         random.shuffle(self.data)

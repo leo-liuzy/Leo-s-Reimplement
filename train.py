@@ -22,7 +22,6 @@ def query_neighbors(task_id, args, memory, test_dataset):
             batch_size=args.batch_size, sampler=test_sampler)  #, collate_fn=dynamic_collate_fn,
                                  # batch_sampler=DynamicBatchSampler(test_dataset, args.batch_size * 4))
 
-
     q_input_ids, q_masks, q_labels = [], [], []
     for step, batch in enumerate(test_dataloader):
         n_inputs, input_ids, masks, labels = prepare_inputs(batch)
@@ -114,7 +113,7 @@ def main():
     model_config = config_class.from_pretrained(args.model_name, num_labels=args.n_labels)
     config_save_path = os.path.join(args.output_dir, 'config')
     model_config.to_json_file(config_save_path)
-    model = model_class.from_pretrained(args.model_name, config=model_config).cuda()
+    model = model_class.from_pretrained(args.model_name, config=model_config).to(args.device)
     memory = Memory(args)
 
     for task_id, task in enumerate(args.tasks):
@@ -132,7 +131,6 @@ def main():
         model_save_path = os.path.join(args.output_dir, 'checkpoint-{}'.format(task_id))
         torch.save(model.state_dict(), model_save_path)
         pickle.dump(memory, open(os.path.join(args.output_dir, 'memory-{}'.format(task_id)), 'wb'))
-
 
     del model
     memory.build_tree()

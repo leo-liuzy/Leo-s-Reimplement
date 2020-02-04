@@ -1,8 +1,16 @@
-ag_news_csv/
+# pycharm configs
 .idea/
+
+# datasets
+ag_news_csv/
 amazon_review_full_csv/
 dbpedia_csv/
 yahoo_answers_csv/
 yelp_review_full_csv/
-output*/
-__pycache__/
+
+# model ouput
+**/output*/
+**/output*
+
+# python compilations
+**/__pycache__/
