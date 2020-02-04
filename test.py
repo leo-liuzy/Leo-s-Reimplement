@@ -18,9 +18,9 @@ from utils import TextClassificationDataset, dynamic_collate_fn, prepare_inputs,
 
 def local_adapt(input_ids, labels, tmp_model, q_input_ids, q_masks, q_labels, args, org_params):
 
-    q_input_ids = q_input_ids.cuda().detach()
-    q_masks = q_masks.cuda().detach()
-    q_labels = q_labels.cuda().detach()
+    q_input_ids = q_input_ids.detach().to(args.device)
+    q_masks = q_masks.detach().to(args.device)
+    q_labels = q_labels.detach().to(args.device)
 
     optimizer = optim.SGD(tmp_model.parameters(), lr=args.adapt_lr, momentum=0.9)
 
@@ -63,8 +63,8 @@ def test_task(task_id, args, model, test_dataset):
 
         for i in range(len(test_dataset)):
             input_id, _, labels = test_dataset[i]
-            input_id = input_id.unsqueeze(0).cuda()
-            label = labels.unsqueeze(0).cuda()
+            input_id = input_id.unsqueeze(0).to(args.device)
+            label = labels.unsqueeze(0).to(args.device)
             loss, logits = local_adapt(input_id, label, copy.deepcopy(model), q_input_ids[i], q_masks[i], q_labels[i], args, org_params)
             cur_loss, cur_acc = update_metrics(loss, logits, cur_loss, cur_acc)
             if (i+1) % args.logging_steps == 0:
@@ -106,7 +106,7 @@ def main():
     config_class, model_class, args.tokenizer_class = model_classes[args.model_type]
     model_config = config_class.from_pretrained(args.model_name, num_labels=args.n_labels, hidden_dropout_prob=0, attention_probs_dropout_prob=0)
     save_model_path = os.path.join(args.output_dir, 'checkpoint-{}'.format(len(args.tasks)-1))
-    model = model_class.from_pretrained(save_model_path, config=model_config).cuda()
+    model = model_class.from_pretrained(save_model_path, config=model_config).to(args.device)
 
     avg_acc = 0
     for task_id, task in enumerate(args.tasks):
