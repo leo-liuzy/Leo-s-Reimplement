@@ -8,6 +8,7 @@ import numpy as np
 import os
 import pickle
 import torch
+from ipdb import set_trace as bp
 logger = logging.getLogger(__name__)
 logging.getLogger("pytorch_transformers").setLevel(logging.WARNING)
 
@@ -61,6 +62,7 @@ def test_task(task_id, args, model, test_dataset):
         q_labels = pickle.load(open(os.path.join(args.output_dir, 'q_labels-{}'.format(task_id)), 'rb'))
 
         for i in range(len(test_dataset)):
+            bp()
             labels, input_ids = test_dataset[i]
             labels = torch.tensor(np.expand_dims(labels, 0), dtype=torch.long).cuda()
             input_ids = torch.tensor(np.expand_dims(input_ids, 0), dtype=torch.long).cuda()
