@@ -70,7 +70,7 @@ def test_task(task_id, args, model, test_dataset):
             cur_loss, cur_acc = update_metrics(loss, logits, cur_loss, cur_acc)
             if (i+1) % args.logging_steps == 0:
                 logging.info("Local adapted {}/{} examples, test loss: {:.3f} , test acc: {:.3f}".format(
-                    i+1, len(test_dataset), cur_loss/(i+1), cur_acc/(i+1)))
+                    i+1, test_size, cur_loss/(i+1), cur_acc/(i+1)))
     else:
         test_dataloader = DataLoader(test_dataset, num_workers=args.n_workers, collate_fn=dynamic_collate_fn,
                                      batch_sampler=DynamicBatchSampler(test_dataset, args.batch_size * 4))
