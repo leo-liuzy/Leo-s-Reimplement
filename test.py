@@ -63,10 +63,10 @@ def test_task(task_id, args, model, test_dataset):
 
         for i in range(len(test_dataset)):
             bp()
-            labels, input_ids = test_dataset[i]
-            labels = torch.tensor(np.expand_dims(labels, 0), dtype=torch.long).cuda()
-            input_ids = torch.tensor(np.expand_dims(input_ids, 0), dtype=torch.long).cuda()
-            loss, logits = local_adapt(input_ids, labels, copy.deepcopy(model), q_input_ids[i], q_masks[i], q_labels[i], args, org_params)
+            input_id, _, labels = test_dataset[i]
+            input_id = input_id.unsqueeze(0).cuda()
+            label = labels.unsqueeze(0).cuda()
+            loss, logits = local_adapt(input_id, label, copy.deepcopy(model), q_input_ids[i], q_masks[i], q_labels[i], args, org_params)
             cur_loss, cur_acc = update_metrics(loss, logits, cur_loss, cur_acc)
             if (i+1) % args.logging_steps == 0:
                 logging.info("Local adapted {}/{} examples, test loss: {:.3f} , test acc: {:.3f}".format(
