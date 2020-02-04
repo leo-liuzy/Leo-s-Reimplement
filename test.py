@@ -96,8 +96,9 @@ def test_task(task_id, args, model, test_dataset):
 def main():
     args = parse_test_args()
     train_args = pickle.load(open(os.path.join(args.output_dir, 'train_args'), 'rb'))
+    bp()
     assert train_args.output_dir == args.output_dir
-    args.__dict__.update(train_args.__dict__)
+    train_args.__dict__.update(args.__dict__)
     init_logging(os.path.join(args.output_dir, 'log_test.txt'))
     logger.info("args: " + str(args))
 
