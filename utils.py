@@ -37,7 +37,7 @@ class TextClassificationDataset(Dataset):
         self.tokenizer = tokenizer
         self.max_len = tokenizer.max_len
         self.n_test = args.n_test
-        self.n_train = args.n_train2
+        self.n_train = args.n_train
         self.valid_ratio = args.valid_ratio
 
         self.data = []
