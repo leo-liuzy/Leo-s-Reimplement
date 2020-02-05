@@ -55,9 +55,8 @@ def test_task(task_id, args, model, test_dataset):
     cur_loss, cur_acc = 0, 0
     idxs = np.arange(len(test_dataset))
     if args.random_sample:
-        idxs = np.random.shuffle(idxs)[:args.test_size]
-    else:
-        idxs = idxs[:args.test_size]
+        np.random.shuffle(idxs)
+    idxs = idxs[:args.test_size]
 
     if args.adapt_steps >= 1:
         with torch.no_grad():
