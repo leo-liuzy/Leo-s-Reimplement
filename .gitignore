@@ -2,11 +2,12 @@
 .idea/
 
 # datasets
-ag_news_csv/
-amazon_review_full_csv/
-dbpedia_csv/
-yahoo_answers_csv/
-yelp_review_full_csv/
+**/ag_news_csv/
+**/amazon_review_full_csv/
+**/dbpedia_csv/
+**/yahoo_answers_csv/
+**/yelp_review_full_csv/
+datasets/
 
 # model ouput
 **/output*/
