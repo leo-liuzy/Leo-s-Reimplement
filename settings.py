@@ -107,9 +107,18 @@ def parse_test_args():
     parser.add_argument("--output_dir", type=str, default="output0")
     parser.add_argument("--gpu_id", type=int, default=-1)
     parser.add_argument("--logging_steps", type=int, default=10)
+    parser.add_argument("--test_size", type=str, default="200")
+    parser.add_argument("--random_sample", action="store_true")
 
     args = parser.parse_args()
     set_device_id(args)
+    if args.test_size == "all":
+        args.test_size = 7600
+    else:
+        assert args.test_size.isnumeric()
+        args.test_size = int(args.test_size)
+        assert args.test_size <= 7600
+
     return args
 
 

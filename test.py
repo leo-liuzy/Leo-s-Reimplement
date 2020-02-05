@@ -53,7 +53,12 @@ def test_task(task_id, args, model, test_dataset):
         return cur_loss + loss, cur_acc + np.sum(preds == labels.detach().cpu().numpy())
 
     cur_loss, cur_acc = 0, 0
-    test_size = 200  # len(test_dataset)
+    idxs = np.arange(len(test_dataset))
+    if args.random_sample:
+        idxs = np.random.shuffle(idxs)[:args.test_size]
+    else:
+        idxs = idxs[:args.test_size]
+
     if args.adapt_steps >= 1:
         with torch.no_grad():
             org_params = torch.cat([torch.reshape(param, [-1]) for param in model.parameters()], 0)
@@ -62,7 +67,7 @@ def test_task(task_id, args, model, test_dataset):
         q_masks = pickle.load(open(os.path.join(args.output_dir, 'q_masks-{}'.format(task_id)), 'rb'))
         q_labels = pickle.load(open(os.path.join(args.output_dir, 'q_labels-{}'.format(task_id)), 'rb'))
 
-        for i in range(test_size):
+        for i in range(idxs):
             input_id, _, labels = test_dataset[i]
             input_id = input_id.unsqueeze(0).to(args.device)
             label = labels.unsqueeze(0).to(args.device)
@@ -70,7 +75,7 @@ def test_task(task_id, args, model, test_dataset):
             cur_loss, cur_acc = update_metrics(loss, logits, cur_loss, cur_acc)
             if (i+1) % args.logging_steps == 0:
                 logging.info("Local adapted {}/{} examples, test loss: {:.3f} , test acc: {:.3f}".format(
-                    i+1, test_size, cur_loss/(i+1), cur_acc/(i+1)))
+                    i+1, args.test_size, cur_loss/(i+1), cur_acc/(i+1)))
     else:
         test_dataloader = DataLoader(test_dataset, num_workers=args.n_workers, collate_fn=dynamic_collate_fn,
                                      batch_sampler=DynamicBatchSampler(test_dataset, args.batch_size * 4))
@@ -90,8 +95,8 @@ def test_task(task_id, args, model, test_dataset):
         assert tot_n_inputs == len(test_dataset)
 
     logger.info("test loss: {:.3f} , test acc: {:.3f}".format(
-        cur_loss / test_size, cur_acc / test_size))
-    return cur_acc / test_size
+        cur_loss / args.test_size, cur_acc / args.test_size))
+    return cur_acc / args.test_size
 
 
 def main():
