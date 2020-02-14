@@ -56,6 +56,7 @@ def parse_train_args():
     parser.add_argument("--replay_interval", type=int, default=100)
     parser.add_argument("--reproduce", action="store_true")
     parser.add_argument("--tasks", nargs='+', default=["ag_news_csv"])
+    parser.add_argument("--data_dir", type=str, default=f"{os.getcwd()}/datasets")
     parser.add_argument("--valid_ratio", type=float, default=0)
     parser.add_argument("--warmup_steps", type=int, default=0)
     parser.add_argument("--weight_decay", type=float, default=0)
@@ -107,9 +108,18 @@ def parse_test_args():
     parser.add_argument("--output_dir", type=str, default="output0")
     parser.add_argument("--gpu_id", type=int, default=-1)
     parser.add_argument("--logging_steps", type=int, default=10)
+    parser.add_argument("--test_size", type=str, default="200")
+    parser.add_argument("--random_sample", action="store_true")
 
     args = parser.parse_args()
     set_device_id(args)
+    if args.test_size == "all":
+        args.test_size = 7600
+    else:
+        assert args.test_size.isnumeric()
+        args.test_size = int(args.test_size)
+        assert args.test_size <= 7600
+
     return args
 
 

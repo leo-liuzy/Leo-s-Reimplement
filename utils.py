@@ -32,7 +32,7 @@ def dynamic_collate_fn(batch):
 class TextClassificationDataset(Dataset):
     def __init__(self, task, mode, args, tokenizer):
 
-        self.task = task
+        self.task = f"{args.data_dir}/{task}"
         self.mode = mode
         self.tokenizer = tokenizer
         self.max_len = tokenizer.max_len
