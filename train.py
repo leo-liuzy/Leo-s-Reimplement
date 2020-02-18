@@ -1,8 +1,10 @@
-from pytorch_transformers import AdamW, WarmupLinearSchedule
+from transformers import AdamW, WarmupLinearSchedule
 from torch.utils.data import DataLoader, SequentialSampler
 import logging
 import numpy as np
 import os
+from torch import optim
+optim.Adam
 import pickle
 import torch
 from ipdb import set_trace as bp
@@ -10,21 +12,20 @@ logger = logging.getLogger(__name__)
 logging.getLogger("pytorch_transformers").setLevel(logging.WARNING)
 
 
-from memory import Memory
-from settings import parse_train_args, model_classes, init_logging
-from utils import TextClassificationDataset, DynamicBatchSampler
-from utils import dynamic_collate_fn, prepare_inputs
+from memory import ClassificationMemory, QAMemory
+from settings import parse_train_args, MODEL_CLASSES, init_logging
+from utils import BertTextClassificationDataset, DynamicBatchSampler
+from utils import class_dynamic_collate_fn, prepare_inputs
 
 
-def query_neighbors(task_id, args, memory, test_dataset):
+def query_neighbors(dataset_id, args, memory, test_dataset):
     test_sampler = SequentialSampler(test_dataset)
-    test_dataloader = DataLoader(test_dataset, num_workers=args.n_workers, 
-            batch_size=args.batch_size, sampler=test_sampler)  #, collate_fn=dynamic_collate_fn,
-                                 # batch_sampler=DynamicBatchSampler(test_dataset, args.batch_size * 4))
-
+    test_dataloader = DataLoader(test_dataset, num_workers=args.n_workers,
+                                 batch_size=args.batch_size, sampler=test_sampler)
+    memory.eval()
     q_input_ids, q_masks, q_labels = [], [], []
     for step, batch in enumerate(test_dataloader):
-        n_inputs, input_ids, masks, labels = prepare_inputs(batch)
+        input_ids, masks, labels = prepare_inputs(args, batch)
         with torch.no_grad():
             cur_q_input_ids, cur_q_masks, cur_q_labels = memory.query(input_ids, masks)
         q_input_ids.extend(cur_q_input_ids)
@@ -32,48 +33,45 @@ def query_neighbors(task_id, args, memory, test_dataset):
         q_labels.extend(cur_q_labels)
         if (step+1) % args.logging_steps == 0:
             logging.info("Queried {} examples".format(len(q_masks)))
-    pickle.dump(q_input_ids, open(os.path.join(args.output_dir, 'q_input_ids-{}'.format(task_id)), 'wb'))
-    pickle.dump(q_masks, open(os.path.join(args.output_dir, 'q_masks-{}'.format(task_id)), 'wb'))
-    pickle.dump(q_labels, open(os.path.join(args.output_dir, 'q_labels-{}'.format(task_id)), 'wb'))
+
+    pickle.dump(q_input_ids, open(os.path.join(args.output_dir, 'q_input_ids-{}'.format(dataset_id)), 'wb'))
+    pickle.dump(q_masks, open(os.path.join(args.output_dir, 'q_masks-{}'.format(dataset_id)), 'wb'))
+    pickle.dump(q_labels, open(os.path.join(args.output_dir, 'q_labels-{}'.format(dataset_id)), 'wb'))
 
 
-def train_task(args, model, memory, train_dataset, valid_dataset):
+def train(args, model, memory, train_dataset, valid_dataset):
 
-    # train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, num_workers=args.n_workers,
-    #                               shuffle=not args.reproduce, collate_fn=dynamic_collate_fn)
-    # bp()
     train_sampler = SequentialSampler(train_dataset)
-    train_dataloader = DataLoader(train_dataset, num_workers=args.n_workers, 
-            batch_size=args.batch_size,
-            sampler=train_sampler) # , collate_fn=dynamic_collate_fn,
-                                  # batch_sampler=DynamicBatchSampler(train_dataset, args.batch_size))
+    train_dataloader = DataLoader(train_dataset, num_workers=args.n_workers,collate_fn=class_dynamic_collate_fn,
+                                 batch_sampler=DynamicBatchSampler(train_dataset, args.batch_size))
     # if valid_dataset:
     #     valid_dataloader = DataLoader(valid_dataset, batch_size=args.batch_size * 6,
     #                                   num_workers=args.n_workers, collate_fn=dynamic_collate_fn)
     no_decay = ['bias', 'LayerNorm.weight']
     optimizer_grouped_parameters = [
-        {'params': [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)], 'weight_decay': args.weight_decay},
-        {'params': [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
+        {'params': [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)],
+         'weight_decay': args.weight_decay},
+        {'params': [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)],
+         'weight_decay': 0.0}
     ]
     optimizer = AdamW(optimizer_grouped_parameters, lr=args.learning_rate, eps=args.adam_epsilon)
     scheduler = WarmupLinearSchedule(optimizer, warmup_steps=args.warmup_steps, t_total=len(train_dataset)//10)
 
-    model.zero_grad()
     tot_epoch_loss, tot_n_inputs = 0, 0
 
     def update_parameters(loss):
+        model.zero_grad()
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
         optimizer.step()
         scheduler.step()
-        model.zero_grad()
+
+    model.train()
     for step, batch in enumerate(train_dataloader):
-        model.train()
-        n_inputs, input_ids, masks, labels = prepare_inputs(batch)
-        # bp()
-        # print(n_inputs)
-        memory.add(input_ids, masks, labels)
-        loss = model(input_ids=input_ids, attention_mask=masks, labels=labels)[0]
+        n_inputs = batch[0].shape[0]
+        inputs = prepare_inputs(args, batch)  # prepare task-specific input
+        memory.add(**inputs)
+        loss = model(**inputs)[0]
         update_parameters(loss)
         tot_n_inputs += n_inputs
         tot_epoch_loss += loss.item() * n_inputs
@@ -84,7 +82,7 @@ def train_task(args, model, memory, train_dataset, valid_dataset):
                         "lr: {:.2E} , "
                         "avg batch size: {:.1f} , "
                         "avg loss: {:.3f}".format(tot_n_inputs/args.n_train,
-                                                  step+1, scheduler.get_last_lr()[0],
+                                                  step+1, scheduler.get_lr()[0],
                                                   tot_n_inputs//(step+1),
                                                   tot_epoch_loss/tot_n_inputs))
 
@@ -103,44 +101,48 @@ def train_task(args, model, memory, train_dataset, valid_dataset):
 def main():
     args = parse_train_args()
     pickle.dump(args, open(os.path.join(args.output_dir, 'train_args'), 'wb'))
-    init_logging(os.path.join(args.output_dir, 'log_train.txt'))
+    init_logging(os.path.join(args.output_dir, f"{args.train_log_filename.split('.')[0]}_{args.model_type}.txt"))
     logger.info("args: " + str(args))
 
-    logger.info("Initializing main {} model".format(args.model_name))
-    config_class, model_class, args.tokenizer_class = model_classes[args.model_type]
+    logger.info(f"Initializing main {args.model_name} model")
+    config_class, model_class, args.tokenizer_class = MODEL_CLASSES[args.model_type]
     tokenizer = args.tokenizer_class.from_pretrained(args.model_name)
-
-    model_config = config_class.from_pretrained(args.model_name, num_labels=args.n_labels)
-    config_save_path = os.path.join(args.output_dir, 'config')
+    if args.task == "text_classification":
+        model_config = config_class.from_pretrained(args.model_name, num_labels=args.n_labels)
+    else:
+        model_config = config_class.from_pretrained(args.model_name)
+    config_save_path = os.path.join(args.output_dir, 'config' + f"{args.model_name}")
     model_config.to_json_file(config_save_path)
     model = model_class.from_pretrained(args.model_name, config=model_config).to(args.device)
-    memory = Memory(args)
+    memory = QAMemory(args) if args.task == "qa" else ClassificationMemory(args)
 
-    for task_id, task in enumerate(args.tasks):
-        logger.info("Start parsing {} train data...".format(task))
-        train_dataset = TextClassificationDataset(task, "train", args, tokenizer)
+    for dataset_id, dataset_name in enumerate(args.dataset_order):
+
+        logger.info(f"Start parsing {dataset_name} train data...")
+        dataset_dir = f"{args.data_dir}/{dataset_name}"
+        train_dataset = BertTextClassificationDataset(dataset_dir, "train", args, tokenizer, logger)
 
         if args.valid_ratio > 0:
-            logger.info("Start parsing {} valid data...".format(task))
-            valid_dataset = TextClassificationDataset(task, "valid", args, tokenizer)
+            logger.info(f"Start parsing {dataset_name} valid data...")
+            valid_dataset = BertTextClassificationDataset(dataset_dir, "valid", args, tokenizer, logger)
         else:
             valid_dataset = None
 
-        logger.info("Start training {}...".format(task))
-        train_task(args, model, memory, train_dataset, valid_dataset)
-        model_save_path = os.path.join(args.output_dir, 'checkpoint-{}'.format(task_id))
+        logger.info(f"Start training {dataset_name}...")
+        train(args, model, memory, train_dataset, valid_dataset)
+        model_save_path = os.path.join(args.output_dir, f'checkpoint-{dataset_id}')
         torch.save(model.state_dict(), model_save_path)
-        pickle.dump(memory, open(os.path.join(args.output_dir, 'memory-{}'.format(task_id)), 'wb'))
+        pickle.dump(memory, open(os.path.join(args.output_dir, f'memory-{dataset_id}'), 'wb'))
 
     del model
     memory.build_tree()
 
-    for task_id, task in enumerate(args.tasks):
-        logger.info("Start parsing {} test data...".format(task))
-        test_dataset = TextClassificationDataset(task, "test", args, tokenizer)
-        pickle.dump(test_dataset, open(os.path.join(args.output_dir, 'test_dataset-{}'.format(task_id)), 'wb'))
-        logger.info("Start querying {}...".format(task))
-        query_neighbors(task_id, args, memory, test_dataset)
+    for dataset_id, dataset_name in enumerate(args.dataset_order):
+        logger.info(f"Start parsing {dataset_name} test data...")
+        test_dataset = BertTextClassificationDataset(dataset_name, "test", args, tokenizer, logger)
+        pickle.dump(test_dataset, open(os.path.join(args.output_dir, f'test_dataset-{dataset_id}')), 'wb')
+        logger.info(f"Start querying {dataset_name}...")
+        query_neighbors(dataset_id, args, memory, test_dataset)
 
 
 if __name__ == "__main__":

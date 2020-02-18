@@ -10,4 +10,4 @@ elif [ "$1" == "3" ]; then
     TASKS="ag_news_csv yelp_review_full_csv amazon_review_full_csv yahoo_answers_csv dbpedia_csv"
 fi
 
-python3 train.py --tasks $TASKS --output_dir "output$2"
+python3 train.py --data_order $TASKS --output_dir "output$2"

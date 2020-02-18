@@ -11,8 +11,8 @@ logging.getLogger("pytorch_transformers").setLevel(logging.WARNING)
 
 
 from memory import Memory
-from settings import parse_train_args, model_classes, init_logging
-from utils import TextClassificationDataset, DynamicBatchSampler
+from settings import parse_train_args, MODEL_CLASSES, init_logging
+from utils import BertTextClassificationDataset, DynamicBatchSampler
 from utils import dynamic_collate_fn, prepare_inputs
 
 
@@ -100,7 +100,7 @@ def main():
     logger.info("args: " + str(args))
 
     logger.info("Initializing main {} model".format(args.model_name))
-    config_class, model_class, args.tokenizer_class = model_classes[args.model_type]
+    config_class, model_class, args.tokenizer_class = MODEL_CLASSES[args.model_type]
     tokenizer = args.tokenizer_class.from_pretrained(args.model_name)
 
     model_config = config_class.from_pretrained(args.model_name, num_labels=args.n_labels)
@@ -120,11 +120,11 @@ def main():
 
     for task_id, task in enumerate(args.tasks):
         logger.info("Start parsing {} train data...".format(task))
-        train_dataset = TextClassificationDataset(task, "train", args, tokenizer)
+        train_dataset = BertTextClassificationDataset(task, "train", args, tokenizer)
 
         if args.valid_ratio > 0:
             logger.info("Start parsing {} valid data...".format(task))
-            valid_dataset = TextClassificationDataset(task, "valid", args, tokenizer)
+            valid_dataset = BertTextClassificationDataset(task, "valid", args, tokenizer)
         else:
             valid_dataset = None
 
@@ -141,7 +141,7 @@ def main():
 
     for task_id, task in enumerate(args.tasks):
         logger.info("Start parsing {} test data...".format(task))
-        test_dataset = TextClassificationDataset(task, "test", args, tokenizer)
+        test_dataset = BertTextClassificationDataset(task, "test", args, tokenizer)
         pickle.dump(test_dataset, open(os.path.join(args.output_dir, 'test_dataset-{}'.format(task_id)), 'wb'))
         logger.info("Start querying {}...".format(task))
         query_neighbors(task_id, args, memory, test_dataset)
