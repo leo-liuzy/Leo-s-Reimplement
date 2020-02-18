@@ -12,6 +12,7 @@ cache/
 
 # model ouput
 **/output*/
+**/output*
 
 # python compilations
 **/__pycache__/
