@@ -10,10 +10,10 @@ from ipdb import set_trace as bp
 logger = logging.getLogger(__name__)
 logging.getLogger("pytorch_transformers").setLevel(logging.WARNING)
 
-from memory import Memory
-from settings import parse_train_args, model_classes, init_logging
-from utils import TextClassificationDataset, DynamicBatchSampler
-from utils import dynamic_collate_fn, prepare_inputs
+from memory_lamol import Memory
+from settings_lamol import parse_train_args, model_classes, init_logging
+from utils_lamol import TextClassificationDataset, DynamicBatchSampler
+from utils_lamol import dynamic_collate_fn, prepare_inputs
 
 
 def query_neighbors(task_id, args, memory, test_dataset):
@@ -67,9 +67,6 @@ def train_task(args, model, memory, optimizer, train_dataset, valid_dataset):
         tot_epoch_loss += loss.item() * n_inputs
         del loss
         if (step+1) % args.logging_steps == 0:
-            # non_decay_lr = [group["lr"] * (-1e-5 <= group["weight_decay"] - 0.0 <= 1e-5) for group in optimizer.param_groups][0]
-            # decay_lr = [group["lr"] * (group["weight_decay"] - 0.0 > 1e-5) for group in optimizer.param_groups][0]
-            # bp()
             logger.info("progress: {:.2f} , step: {} , lr: {:.2E} , avg batch size: {:.1f} , avg loss: {:.3f}".format(
                 tot_n_inputs/args.n_train, step+1, optimizer.param_groups[0]['lr'], tot_n_inputs//(step+1), tot_epoch_loss/tot_n_inputs))
 
@@ -108,7 +105,8 @@ def main():
     model_config = config_class.from_pretrained(args.model_name, num_labels=args.n_labels)
     config_save_path = os.path.join(args.output_dir, 'config')
     model_config.to_json_file(config_save_path)
-    model = model_class.from_pretrained(args.model_name, config=model_config).cuda()
+    model = model_class.from_pretrained(args.model_name, config=model_config)
+    model = torch.nn.DataParallel(model, device_ids=args.device_ids)
     memory = Memory(args)
     
     # no_decay = ['bias', 'LayerNorm.weight']

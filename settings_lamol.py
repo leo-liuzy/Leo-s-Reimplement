@@ -24,8 +24,10 @@ label_offsets = {
 
 
 def set_device_id(args):
-    args.device_id = GPUtil.getFirstAvailable(maxLoad=0.05, maxMemory=0.05)[0]
-    torch.cuda.set_device(args.device_id)
+    args.device_ids = GPUtil.getFirstAvailable(maxLoad=0.05, maxMemory=0.05)[:args.num_gpu]
+    if len(args.device_ids) != args.num_gpu:
+        raise Exception("Not enough available gpus!")
+    torch.cuda.set_device(args.device_ids[0])
 
 
 def seed_randomness(args):
@@ -57,6 +59,7 @@ def parse_train_args():
     parser.add_argument("--overwrite", action="store_true")
     parser.add_argument("--replay_interval", type=int, default=10000)
     parser.add_argument("--reproduce", action="store_true")
+    parser.add_argument("--num_gpu", type=int, default=1)
     parser.add_argument("--tasks", nargs='+', default=["ag_news_csv"])
     parser.add_argument("--valid_ratio", type=float, default=0)
     parser.add_argument("--warmup_steps", type=int, default=10000)
