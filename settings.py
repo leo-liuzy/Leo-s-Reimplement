@@ -134,9 +134,9 @@ def parse_test_args():
     parser = argparse.ArgumentParser("Test Lifelong Language Learning")
 
     parser.add_argument("--adapt_lambda", type=float, default=1e-3)
-    parser.add_argument("--adapt_lr", type=float, default=2e-3)
+    parser.add_argument("--adapt_lr", type=float, default=5e-3)
     parser.add_argument("--adapt_steps", type=int, default=30)
-    parser.add_argument("--no_fp16_test", action="store_true")
+    parser.add_argument("--fp16_test", action="store_true")
     parser.add_argument("--output_dir", type=str, default="output0")
     parser.add_argument("--gpu_id", type=int, default=-1)
     parser.add_argument("--logging_steps", type=int, default=10)
@@ -146,6 +146,7 @@ def parse_test_args():
     parser.add_argument('--seed', type=int, default=SEED)
 
     args = parser.parse_args()
+    args.test_log_filename = aug_log_file(args, args.test_log_filename)
     seed_randomness(args)
     set_device(args)
     assert args.n_test <= MAX_TEST_SIZE
@@ -159,6 +160,12 @@ def parse_test_args():
             raise ValueError("Test log exists!")
 
     return args
+
+
+def aug_log_file(args, filename):
+    prefix, suffix = filename.split(".")
+    name = f"{prefix}_adapstep{args.adapt_steps}_ntest{args.n_test}_loclr{args.adapt_lr}"
+    return name + "." + suffix
 
 
 class TimeFilter(logging.Filter):

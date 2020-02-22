@@ -11,9 +11,9 @@ logger = logging.getLogger(__name__)
 logging.getLogger("pytorch_transformers").setLevel(logging.WARNING)
 
 from memory import Memory
-from settings import parse_train_args, model_classes, init_logging
+from settings import parse_train_args, MODEL_CLASSES, init_logging
 from utils import TextClassificationDataset, DynamicBatchSampler
-from utils import dynamic_collate_fn, prepare_inputs
+from utils import class_dynamic_collate_fn, prepare_inputs
 
 
 def query_neighbors(task_id, args, memory, test_dataset):
@@ -59,9 +59,10 @@ def train_task(args, model, memory, optimizer, train_dataset, valid_dataset):
     from ipdb import set_trace as bp
     for step, batch in enumerate(train_dataloader):
         model.train()
-        n_inputs, input_ids, masks, labels = prepare_inputs(batch)
-        memory.add(input_ids, masks, labels)
-        loss = model(input_ids=input_ids, attention_mask=masks, labels=labels)[0]
+        n_inputs = len(batch)
+        inputs = prepare_inputs(args, batch)
+        memory.add(**inputs)
+        loss = model(**inputs)[0]
         update_parameters(loss)
         tot_n_inputs += n_inputs
         tot_epoch_loss += loss.item() * n_inputs
@@ -92,7 +93,7 @@ def main():
     logger.info("args: " + str(args))
 
     logger.info("Initializing main {} model".format(args.model_name))
-    config_class, model_class, args.tokenizer_class = model_classes[args.model_type]
+    config_class, model_class, args.tokenizer_class = MODEL_CLASSES[args.model_type]
     tokenizer = args.tokenizer_class.from_pretrained(args.model_name)
 
     model_config = config_class.from_pretrained(args.model_name, num_labels=args.n_labels)

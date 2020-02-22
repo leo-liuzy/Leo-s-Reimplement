@@ -62,9 +62,9 @@ def train(args, model, memory, train_dataset, valid_dataset):
     def update_parameters(loss):
         model.zero_grad()
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
+        # torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
         optimizer.step()
-        scheduler.step()
+        # scheduler.step()
 
     model.train()
     for step, batch in enumerate(train_dataloader):
