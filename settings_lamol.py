@@ -55,7 +55,7 @@ def parse_train_args():
     parser.add_argument("--n_workers", type=int, default=4)
     parser.add_argument("--output_dir", type=str, default="output0")
     parser.add_argument("--overwrite", action="store_true")
-    parser.add_argument("--replay_interval", type=int, default=100)
+    parser.add_argument("--replay_interval", type=int, default=10000)
     parser.add_argument("--reproduce", action="store_true")
     parser.add_argument("--tasks", nargs='+', default=["ag_news_csv"])
     parser.add_argument("--valid_ratio", type=float, default=0)
