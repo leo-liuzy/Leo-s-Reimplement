@@ -8,7 +8,7 @@ from torch import optim
 logger = logging.getLogger(__name__)
 logging.getLogger("pytorch_transformers").setLevel(logging.WARNING)
 
-from memory import Memory
+from memory import ClassMemory
 from settings import parse_train_args, model_classes, init_logging
 from utils import TextClassificationDataset, DynamicBatchSampler
 from utils import dynamic_collate_fn, prepare_inputs
@@ -108,7 +108,7 @@ def main():
     model_config.to_json_file(config_save_path)
     model = model_class.from_pretrained(args.model_name, config=model_config)
     model = torch.nn.DataParallel(model, args.device_ids)
-    memory = Memory(args)
+    memory = ClassMemory(args)
     
     # no_decay = ['bias', 'LayerNorm.weight']
     # optimizer_grouped_parameters = [
