@@ -11,3 +11,7 @@ from utils import utils_original
 from utils import utils_parallel
 from utils import utils_squad_evaluate
 from utils import utils_squad
+
+from memory import memory_class_loss_sample
+from memory import memory_class
+from memory import memory_lamol
