@@ -84,7 +84,6 @@ def plot_acc_and_loss(accs, losses, file_name):
     plt.savefig(f"{file_name}_ntest{len(accs)}.png")
 
 
-
 def test_task(task_id, args, model, test_dataset):
     # bp() 
     if args.fp16_test:
@@ -144,7 +143,7 @@ def test_task(task_id, args, model, test_dataset):
                 loss = outputs[0].item()
                 logits = outputs[1].detach().cpu().numpy()
             # bp()
-            cur_loss, cur_acc = update_metrics(loss*n_inputs, logits, cur_loss, cur_acc)
+            cur_loss, cur_acc = update_metrics(loss * n_inputs, logits, cur_loss, cur_acc)
             if (step+1) % args.logging_steps == 0:
                 logging.info("Tested {}/{} examples , test loss: {:.3f} , test acc: {:.3f}".format(
                     tot_n_inputs, len(test_dataset), cur_loss/tot_n_inputs, cur_acc/tot_n_inputs))
