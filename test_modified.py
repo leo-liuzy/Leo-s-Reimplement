@@ -12,16 +12,13 @@ logger = logging.getLogger(__name__)
 logging.getLogger("pytorch_transformers").setLevel(logging.WARNING)
 
 from settings import parse_test_args, MODEL_CLASSES, init_logging
-from utils import TextClassificationDataset, class_dynamic_collate_fn, prepare_inputs, DynamicBatchSampler
+from utils import TextClassificationDataset, class_dynamic_collate_fn, \
+    prepare_inputs, DynamicBatchSampler, batch_from_numpy_to_tensor
 from ipdb import set_trace as bp
 
 
-def local_adapt(input_ids, label, tmp_model, q_input_ids, q_masks, q_labels, args, org_params):
-
-    q_input_ids = q_input_ids.cuda().detach()
-    q_masks = q_masks.cuda().detach()
-    q_labels = q_labels.cuda().detach()
-
+def local_adapt(args, input_ids, label, tmp_model, q_retrieved_examples, org_params):
+    q_retrieved_examples = batch_from_numpy_to_tensor(args, q_retrieved_examples)
     optimizer = torch.optim.Adam(tmp_model.parameters(), lr=args.adapt_lr, eps=args.adam_epsilon)
 
     def predict(model, input_ids, label):
@@ -59,13 +56,13 @@ def plot_acc_and_loss(accs, losses, file_name):
     assert len(accs) == len(losses)
     mean_losses = np.mean(losses, axis=0)
     mean_acces = np.mean(accs, axis=0)
-    local_steps = np.arange(0, len(mean_acces))
+    x = np.arange(0, len(mean_acces))
     import matplotlib.pyplot as plt
     from matplotlib.ticker import MaxNLocator
 
     fig, (ax1, ax2) = plt.subplots(2)
-    ax1.plot(local_steps, mean_losses, marker='o')
-    ax2.plot(local_steps, mean_acces, marker='o')
+    ax1.plot(x, mean_losses, marker='o')
+    ax2.plot(x, mean_acces, marker='o')
     ax1.set_ylabel("loss")
     ax1.set_xlabel("no. of adapt_steps")
     ax2.set_ylabel("acc")
@@ -76,7 +73,7 @@ def plot_acc_and_loss(accs, losses, file_name):
     plt.savefig(f"{file_name}_ntest{len(accs)}.png")
 
 
-def test_task(task_id, args, model, test_dataset):
+def test_task(args, task_id, model, test_dataset):
     def update_metrics(loss, logits, cur_loss, cur_acc):
         preds = np.argmax(logits, axis=1)
         return cur_loss + loss, cur_acc + np.sum(preds == labels.detach().cpu().numpy())
@@ -92,15 +89,14 @@ def test_task(task_id, args, model, test_dataset):
         with torch.no_grad():
             org_params = torch.cat([torch.reshape(param, [-1]) for param in model.parameters()], 0)
 
-        q_input_ids = pickle.load(open(os.path.join(args.output_dir, 'q_input_ids-{}'.format(task_id)), 'rb'))
-        q_masks = pickle.load(open(os.path.join(args.output_dir, 'q_masks-{}'.format(task_id)), 'rb'))
-        q_labels = pickle.load(open(os.path.join(args.output_dir, 'q_labels-{}'.format(task_id)), 'rb'))
+        q_retrieved_examples = pickle.load(open(os.path.join(args.output_dir,
+                                                             f'q_retrieved_examples-{task_id}'), 'rb'))
 
         for i in range(test_size):
             labels, input_ids = test_dataset[i]
             labels = torch.tensor(np.expand_dims(labels, 0), dtype=torch.long).cuda()
             input_ids = torch.tensor(np.expand_dims(input_ids, 0), dtype=torch.long).cuda()
-            accs, losses = local_adapt(input_ids, labels, copy.deepcopy(model), q_input_ids[i], q_masks[i], q_labels[i], args, org_params)
+            accs, losses = local_adapt(args, input_ids, labels, copy.deepcopy(model), q_retrieved_examples[i], org_params)
             if len(cur_accs) == len(cur_losses) == 0:
                 cur_losses = np.array([losses])
                 cur_accs = np.array([accs])
@@ -166,7 +162,7 @@ def main():
     for task_id, task in enumerate(args.tasks):
         logger.info("Start testing {}...".format(task))
         test_dataset = pickle.load(open(os.path.join(args.output_dir, 'test_dataset-{}'.format(task_id)), 'rb'))
-        task_acc, task_loss = test_task(task_id, args, model, test_dataset)
+        task_acc, task_loss = test_task(args, task_id, model, test_dataset)
         avg_accs.append(task_acc)
         avg_losses.append(task_loss)
     avg_accs = np.array(avg_accs)

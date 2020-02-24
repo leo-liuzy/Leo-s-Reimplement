@@ -62,6 +62,7 @@ def local_adapt(input_ids, label, tmp_model, q_input_ids, q_masks, q_labels, arg
     assert len(accs) == len(losses) == args.adapt_steps + 1
     return accs, losses
 
+
 def plot_acc_and_loss(accs, losses, file_name):
     assert len(accs) == len(losses)
     mean_losses = np.mean(losses, axis=0)

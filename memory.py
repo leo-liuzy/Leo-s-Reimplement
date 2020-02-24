@@ -1,6 +1,7 @@
 from pytorch_transformers import BertModel
 from sklearn.neighbors import NearestNeighbors
 import torch
+from typing import *
 import numpy as np
 import pickle
 import os
@@ -18,12 +19,12 @@ class Memory(torch.nn.Module):
         self.n_neighbors = args.n_neighbors
         with torch.no_grad():
             logger.info("Initializing memory {} model".format(args.model_name))
-            self.model = BertModel.from_pretrained(args.model_name).to(args.device)
+            self.model = BertModel.from_pretrained(args.model_name).to(args.devices[0])
             self.model.eval()
         self.hidden_size = self.model.config.hidden_size
         self.tree = NearestNeighbors(n_jobs=args.n_workers)
         self.built_tree = None
-        self.device = args.device
+        self.devices = args.devices
 
     def add(self, input_ids, masks, **others):
         if self.built_tree:
@@ -63,7 +64,7 @@ class Memory(torch.nn.Module):
         outputs = self.model(**inputs)
         queries = outputs[0][:, 0, :].cpu().numpy()
         inds = self.tree.kneighbors(queries, n_neighbors=self.n_neighbors, return_distance=False)
-        input_ids, masks = list(zip(*[pad_to_max_len(input_id) for input_id in self.input_ids[inds]]))
+        input_ids, masks = list(zip(*[pad_to_max_len(input_id) [0]for input_id in self.input_ids[inds]]))
         return input_ids, masks, inds
 
 
@@ -78,13 +79,13 @@ class ClassificationMemory(Memory):
         super().add(input_ids, masks)
         self.labels.extend(others["labels"].cpu().tolist())
 
-    def sample(self, n_samples):
+    def sample(self, n_samples) -> Dict[str, torch.Tensor]:
         input_ids, masks, inds = super().sample(n_samples)
         labels = torch.tensor([self.labels[ind] for ind in inds], dtype=torch.long)
         retval = {
-            "input_ids": input_ids.to(self.device),
-            "attention_mask": masks.to(self.device),
-            "labels": labels.to(self.device)
+            "input_ids": input_ids.to(self.devices[0]),
+            "attention_mask": masks.to(self.devices[0]),
+            "labels": labels.to(self.devices[0])
         }
         return retval
 
@@ -92,16 +93,16 @@ class ClassificationMemory(Memory):
         super().build_tree()
         self.labels = np.array(self.labels)
 
-    def query(self, **input):
+    def query(self, **input) -> Dict[str, torch.Tensor]:
         input_ids, masks, inds = super().query(**input)
         input_ids = torch.tensor(input_ids, dtype=torch.long)
         masks = torch.tensor(masks, dtype=torch.long)
         labels = torch.tensor([torch.tensor(label, dtype=torch.long)
                                for label in self.labels[inds]])
         retval = {
-            "input_ids": input_ids.to(self.device),
-            "attention_mask": masks.to(self.device),
-            "labels": labels.to(self.device)
+            "input_ids": input_ids.to(self.devices[0]),
+            "attention_mask": masks.to(self.devices[0]),
+            "labels": labels.to(self.devices[0])
         }
         return retval
 
@@ -117,15 +118,15 @@ class QAMemory(Memory):
         self.start_positions.extend(others["start_positions"].cpu().tolist())
         self.end_positions.extend(others["end_positions"].cpu().tolist())
 
-    def sample(self, n_samples):
+    def sample(self, n_samples) -> Dict[str, torch.Tensor]:
         input_ids, masks, inds = super().sample(n_samples)
         start_positions = torch.tensor([self.start_positions[ind] for ind in inds], dtype=torch.long)
         end_positions = torch.tensor([self.end_positions[ind] for ind in inds], dtype=torch.long)
         retval = {
-            "input_ids": input_ids.to(self.device),
-            "attention_mask": masks.to(self.device),
-            "start_positions": start_positions.to(self.device),
-            "end_positions": end_positions.to(self.device)
+            "input_ids": input_ids.to(self.devices[0]),
+            "attention_mask": masks.to(self.devices[0]),
+            "start_positions": start_positions.to(self.devices[0]),
+            "end_positions": end_positions.to(self.devices[0])
         }
         return retval
 
@@ -134,7 +135,7 @@ class QAMemory(Memory):
         self.start_positions = np.array(self.start_positions)
         self.end_positions = np.array(self.end_positions)
 
-    def query(self, **input):
+    def query(self, **input) -> Dict[str, torch.Tensor]:
         input_ids, masks, inds = super().query(**input)
         input_ids = torch.tensor(input_ids, dtype=torch.long)
         masks = torch.tensor(masks, dtype=torch.long)
@@ -145,9 +146,9 @@ class QAMemory(Memory):
         start_positions = torch.tensor(start_positions)
         end_positions = torch.tensor(end_positions)
         retval = {
-            "input_ids": input_ids.to(self.device),
-            "attention_mask": masks.to(self.device),
-            "start_positions": start_positions.to(self.device),
-            "end_positions": end_positions.to(self.device)
+            "input_ids": input_ids.to(self.devices[0]),
+            "attention_mask": masks.to(self.devices[0]),
+            "start_positions": start_positions.to(self.devices[0]),
+            "end_positions": end_positions.to(self.devices[0])
         }
         return retval

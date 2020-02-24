@@ -33,12 +33,12 @@ label_offsets = {
 
 
 def set_device(args):
-    if args.gpu_id >= 0 and torch.cuda.is_available():
-        args.device_id = GPUtil.getFirstAvailable(maxLoad=0.5, maxMemory=0.5)[args.gpu_id]
-        args.device = torch.device(f"cuda:{args.device_id}")
+    if args.num_gpu > 0 and torch.cuda.is_available():
+        args.device_id = GPUtil.getFirstAvailable(maxLoad=0.05, maxMemory=0.05)[:args.num_gpu]
+        args.devices = [torch.device(f"cuda:{device_id}") for device_id in args.device_ids]
     else:
-        args.device = torch.device("cpu")
-        args.device_id = -1
+        args.devices = [torch.device("cpu")]
+        args.device_ids = [-1]
 
 
 def seed_randomness(args):
@@ -60,7 +60,7 @@ def parse_train_args():
     parser.add_argument("--logging_steps", type=int, default=100)
     parser.add_argument("--max_grad_norm", type=float, default=1.0)
     parser.add_argument("--model_name", type=str, default="bert-base-uncased")
-    parser.add_argument("--gpu_id", type=int, default=-1)
+    parser.add_argument("--num_gpu", nargs='+', type=int, default=-1)
     parser.add_argument("--model_type", type=str, default="bert-class",
                         help="Model type selected in the list: " + ", ".join(MODEL_CLASSES.keys()))
     parser.add_argument("--n_labels", type=int, default=33)
@@ -79,6 +79,7 @@ def parse_train_args():
     parser.add_argument("--replay_interval", type=int, default=100)
     parser.add_argument("--reproduce", action="store_true")
     parser.add_argument("--tasks", nargs='+', default=["ag_news_csv"])
+    parser.add_argument("--write_ratio", type=float, default=1.0)
     parser.add_argument("--valid_ratio", type=float, default=0)
     parser.add_argument("--warmup_steps", type=int, default=0)
     parser.add_argument("--weight_decay", type=float, default=0)

@@ -2,6 +2,7 @@ from multiprocessing import Pool
 from torch.utils.data import Dataset, Sampler
 from transformers import BertTokenizer
 import csv
+from typing import *
 import numpy as np
 import os
 import random
@@ -36,18 +37,44 @@ def read_from_csv(fname, delimiter, quotechar):
     return data
 
 
-def prepare_inputs(args, batch):
+def batch_from_numpy_to_tensor(batch: Dict[str, np.ndarray]):
+    return {k: torch.tensor(v) for k, v in batch.items()}
+
+
+def batch_from_tensor_to_numpy(batch: Dict[str, torch.Tensor]):
+    return {k: v.detach().cpu().numpy() for k, v in batch.items()}
+
+
+def prepare_inputs(args, batch: List[torch.Tensor]):
     assert args.task in TASKS
 
+    def f(x):
+        return x.to(args.devices[0])
     if args.task == "qa":
-        inputs = {'input_ids': batch[0].to(args.device),
-                  'attention_mask': batch[1].to(args.device),
-                  'start_positions': batch[3].to(args.device),
-                  'end_positions': batch[4].to(args.device)}
+        inputs = {'input_ids': f(batch[0]),
+                  'attention_mask': f(batch[1]),
+                  'start_positions': f(batch[3]),
+                  'end_positions': f(batch[4])}
     else:
-        inputs = {"input_ids": batch[0].to(args.device),
-                  "attention_mask": batch[1].to(args.device),
-                  "labels": batch[2].to(args.device)}
+        inputs = {"input_ids": f(batch[0]),
+                  "attention_mask": f(batch[1]),
+                  "labels": f(batch[2])}
+    return inputs
+
+
+def prepare_test_example(args, example: List[np.ndarray]):
+    assert args.task in TASKS
+
+    def f(x):
+        return torch.tensor(x).unsqueeze(0).to(args.devices[0])
+
+    if args.task == "qa":
+        inputs = {'start_positions': f(example[0]),
+                  'end_positions': f(example[1]),
+                  'input_ids': f(example[2])}
+    else:
+        inputs = {"labels": f(example[0]),
+                  "input_ids": f(example[1])}
     return inputs
 
 
@@ -183,7 +210,8 @@ class BertTextClassificationDataset(ContinualLearningDataset):
 
     def map_csv(self, row):
         context = '[CLS]' + ' '.join(row[1:])[:self.max_len-2] + '[SEP]'
-        return int(row[0]) + self.label_offset, self.tokenizer.encode(context)
+        tokenized = self.tokenizer.encode(context)
+        return int(row[0]) + self.label_offset, tokenized
 
 
 class DynamicBatchSampler(Sampler):
