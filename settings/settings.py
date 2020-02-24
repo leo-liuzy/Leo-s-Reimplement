@@ -17,6 +17,7 @@ TASKS = ["text_classification", "qa"]
 SAMPLERS = ["seq", "random"]
 MAX_SEQ_LEN=128
 SEED = 42
+# MEMORY_SAMPLE = ['random', 'loss']
 MODEL_CLASSES = {
     'bert-class': (BertConfig, BertForSequenceClassification, BertTokenizer),
     'bert-qa': (BertConfig, BertForQuestionAnswering, BertTokenizer)
@@ -80,6 +81,7 @@ def parse_train_args():
     parser.add_argument("--replay_interval", type=int, default=10000)
     parser.add_argument("--reproduce", action="store_true")
     parser.add_argument("--tasks", nargs='+', default=["ag_news_csv"])
+    # parser.add_argument("--sample_strategy", type=str, default="random", choices=MEMORY_SAMPLE)
     parser.add_argument("--write_ratio", type=float, default=1.0)
     parser.add_argument("--valid_ratio", type=float, default=0)
     parser.add_argument("--warmup_steps", type=int, default=0)

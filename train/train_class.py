@@ -100,7 +100,8 @@ def main():
     model_config = config_class.from_pretrained(args.model_name, num_labels=args.n_labels)
     config_save_path = os.path.join(args.output_dir, 'config')
     model_config.to_json_file(config_save_path)
-    model = model_class.from_pretrained(args.model_name, config=model_config).to(args.devices[0])
+    model = model_class.from_pretrained(args.model_name, config=model_config)
+    model = torch.nn.DataParallel(model, args.device_ids)
     memory = ClassMemory(args)
 
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate, eps=args.adam_epsilon)

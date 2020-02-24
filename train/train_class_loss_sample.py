@@ -6,11 +6,13 @@ import pickle
 import torch
 from torch import optim
 from math import ceil
+from ipdb import set_trace as bp
+from torch.nn import CrossEntropyLoss, MSELoss
 
 logger = logging.getLogger(__name__)
 logging.getLogger("pytorch_transformers").setLevel(logging.WARNING)
 
-from memory.memory_class import ClassMemory
+from memory.memory_class_loss_sample import ClassMemoryLossSample
 from settings.settings import parse_train_args, MODEL_CLASSES, init_logging
 from utils.utils_class import TextClassificationDataset, DynamicBatchSampler, dynamic_collate_fn, prepare_inputs
 
@@ -47,12 +49,21 @@ def train_task(args, model, memory, optimizer, train_dataset, valid_dataset=None
     for step, batch in enumerate(train_dataloader):
         model.train()
         n_inputs, input_ids, masks, labels = prepare_inputs(args, batch)
-        if np.random.rand() < args.write_ratio:
-            memory.add(input_ids, masks, labels)
         # (batch_size, num_labels)
         logits = model(input_ids=input_ids, attention_mask=masks)[0]
-
+        if args.n_labels == 1:
+            #  We are doing regression
+            loss_fct = MSELoss(reduction='none')
+            # (batch_size, )
+            losses = loss_fct(logits.view(-1), labels.view(-1))
+        else:
+            loss_fct = CrossEntropyLoss(reduction='none')
+            # (batch_size, )
+            losses = loss_fct(logits.view(-1, args.n_labels), labels.view(-1))
         model.zero_grad()
+        if np.random.rand() < args.write_ratio:
+            memory.add(input_ids, masks, labels, losses)
+        loss = torch.mean(losses)
         loss.backward()
         optimizer.step()
         tot_n_inputs += n_inputs
@@ -68,20 +79,32 @@ def train_task(args, model, memory, optimizer, train_dataset, valid_dataset=None
         if args.replay_interval >= 1 and (step + 1) % (args.replay_interval // args.batch_size) == 0:
             torch.cuda.empty_cache()
             # need to turn sampled examples into batched training examples
-            input_ids, masks, labels = memory.sample(args.replay_sample)
+            input_ids, masks, labels, losses, inds = memory.sample(args.replay_sample)
+            losses = []
             num_batch = ceil(args.replay_sample / args.batch_size)
             for i in range(num_batch):
                 l = i * args.batch_size
                 u = (i + 1) * args.batch_size
-                input_id = input_ids[l:u]
-                mask = masks[l:u]
-                label = labels[l:u]
-                loss = model(input_ids=input_id, attention_mask=mask, labels=label)[0]
-
+                input_id_batch = input_ids[l:u]
+                mask_batch = masks[l:u]
+                label_batch = labels[l:u]
+                logits = model(input_ids=input_id_batch, attention_mask=mask_batch)[0]
+                if args.n_labels == 1:
+                    #  We are doing regression
+                    loss_fct = MSELoss(reduction='none')
+                    # (batch_size, )
+                    losses = loss_fct(logits.view(-1), label_batch.view(-1))
+                else:
+                    loss_fct = CrossEntropyLoss(reduction='none')
+                    # (batch_size, )
+                    losses = loss_fct(logits.view(-1, args.n_labels), label_batch.view(-1))
+                loss = torch.mean(losses)
                 model.zero_grad()
                 loss.backward()
                 optimizer.step()
 
+            losses = torch.cat(losses)
+            memory.add(input_ids, masks, labels, losses, inds)
         torch.cuda.empty_cache()
 
     # del train_dataset
@@ -103,7 +126,7 @@ def main():
     config_save_path = os.path.join(args.output_dir, 'config')
     model_config.to_json_file(config_save_path)
     model = model_class.from_pretrained(args.model_name, config=model_config).to(args.devices[0])
-    memory = ClassMemory(args)
+    memory = ClassMemoryLossSample(args)
 
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate, eps=args.adam_epsilon)
 
