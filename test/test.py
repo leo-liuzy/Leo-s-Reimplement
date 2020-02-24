@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 logging.getLogger("pytorch_transformers").setLevel(logging.WARNING)
 
 from settings import parse_test_args, MODEL_CLASSES, init_logging
-from utils import BertTextClassificationDataset, class_dynamic_collate_fn, prepare_inputs, \
+from utils_class import BertTextClassificationDataset, class_dynamic_collate_fn, prepare_inputs, \
     DynamicBatchSampler, batch_from_numpy_to_tensor, prepare_test_example
 from utils_original import TextClassificationDataset
 

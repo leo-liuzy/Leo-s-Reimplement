@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 from settings import model_classes
-from utils import pad_to_max_len
+from utils_class import pad_to_max_len
 
 
 class Memory:
@@ -52,7 +52,6 @@ class Memory:
         labels = torch.tensor(labels, dtype=torch.long)
         return input_ids.cuda(), masks.cuda(), labels.cuda()
 
-
     def build_tree(self):
         if self.built_tree:
             logging.warning("Tree already build! Ignore build.")
@@ -62,7 +61,6 @@ class Memory:
         self.tree.fit(self.keys)
         self.input_ids = np.array(self.input_ids)
         self.labels = np.array(self.labels)
-
 
     def query(self, input_ids, masks):
         if not self.built_tree:

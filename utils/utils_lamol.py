@@ -14,6 +14,7 @@ def prepare_inputs(batch):
     input_ids, masks, labels = tuple(b.cuda() for b in batch)
     return batch[0].shape[0], input_ids, masks, labels
 
+
 def pad_to_max_len(input_ids, masks=None):
     max_len = max(len(input_id) for input_id in input_ids)
     masks = torch.tensor([[1]*len(input_id)+[0]*(max_len-len(input_id)) for input_id in input_ids], dtype=torch.long)
@@ -76,6 +77,7 @@ class TextClassificationDataset(Dataset):
 
 class DynamicBatchSampler(Sampler):
     def __init__(self, dataset, batch_size, mode="seq"):
+
         self.dataset = dataset
         self.batch_size = batch_size
         self.n_samples = len(dataset)
@@ -90,7 +92,7 @@ class DynamicBatchSampler(Sampler):
         max_len = 0
         batch = []
         for idx in self.idxs:
-            if len(batch) == self.batch_size:
+            if len(batch) == self.batch_size:# if max(max_len, len(self.dataset[idx][1]))**1.17 * (len(batch) + 1) > self.batch_size:
             # if max(max_len, len(self.dataset[idx][1]))**1.17 * (len(batch) + 1) > self.batch_size:
                 yield batch
                 max_len = 0
