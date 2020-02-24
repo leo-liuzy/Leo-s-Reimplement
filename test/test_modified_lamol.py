@@ -11,8 +11,8 @@ import torch
 logger = logging.getLogger(__name__)
 logging.getLogger("pytorch_transformers").setLevel(logging.WARNING)
 
-from settings import parse_test_args, model_classes, init_logging
-from utils_class import TextClassificationDataset, dynamic_collate_fn, prepare_inputs, DynamicBatchSampler
+from settings_parallel import parse_test_args, model_classes, init_logging
+from utils_parallel import TextClassificationDataset, dynamic_collate_fn, prepare_inputs, DynamicBatchSampler
 from ipdb import set_trace as bp
 
 
@@ -167,7 +167,8 @@ def main():
     config_class, model_class, args.tokenizer_class = model_classes[args.model_type]
     model_config = config_class.from_pretrained(args.model_name, num_labels=args.n_labels, hidden_dropout_prob=0, attention_probs_dropout_prob=0)
     save_model_path = os.path.join(args.output_dir, 'checkpoint-{}'.format(len(args.tasks)-1))
-    model = model_class.from_pretrained(save_model_path, config=model_config).to(args.devices[0])
+    model = model_class.from_pretrained(save_model_path, config=model_config)
+    model = torch.nn.DataParallel(model, device_ids=args.device_ids)
 
     avg_accs = []
     avg_losses = []

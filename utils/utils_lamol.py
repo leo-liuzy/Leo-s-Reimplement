@@ -7,7 +7,7 @@ import random
 import torch
 
 
-from settings import label_offsets
+from settings_parallel import label_offsets
 
 
 def prepare_inputs(args, batch):
