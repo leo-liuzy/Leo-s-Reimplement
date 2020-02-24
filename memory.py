@@ -81,7 +81,12 @@ class ClassificationMemory(Memory):
     def sample(self, n_samples):
         input_ids, masks, inds = super().sample(n_samples)
         labels = torch.tensor([self.labels[ind] for ind in inds], dtype=torch.long)
-        return input_ids.to(self.device), masks.to(self.device), labels.to(self.device)
+        retval = {
+            "input_ids": input_ids.to(self.device),
+            "attention_mask": masks.to(self.device),
+            "labels": labels.to(self.device)
+        }
+        return retval
 
     def build_tree(self):
         super().build_tree()
@@ -89,8 +94,16 @@ class ClassificationMemory(Memory):
 
     def query(self, **input):
         input_ids, masks, inds = super().query(**input)
-        labels = [torch.tensor(label, dtype=torch.long) for label in self.labels[inds]]
-        return input_ids, masks, labels
+        input_ids = torch.tensor(input_ids, dtype=torch.long)
+        masks = torch.tensor(masks, dtype=torch.long)
+        labels = torch.tensor([torch.tensor(label, dtype=torch.long)
+                               for label in self.labels[inds]])
+        retval = {
+            "input_ids": input_ids.to(self.device),
+            "attention_mask": masks.to(self.device),
+            "labels": labels.to(self.device)
+        }
+        return retval
 
 
 class QAMemory(Memory):
@@ -108,8 +121,13 @@ class QAMemory(Memory):
         input_ids, masks, inds = super().sample(n_samples)
         start_positions = torch.tensor([self.start_positions[ind] for ind in inds], dtype=torch.long)
         end_positions = torch.tensor([self.end_positions[ind] for ind in inds], dtype=torch.long)
-        return input_ids.to(self.device), masks.to(self.device), \
-               start_positions.to(self.device), end_positions.to(self.device)
+        retval = {
+            "input_ids": input_ids.to(self.device),
+            "attention_mask": masks.to(self.device),
+            "start_positions": start_positions.to(self.device),
+            "end_positions": end_positions.to(self.device)
+        }
+        return retval
 
     def build_tree(self):
         super().build_tree()
@@ -118,8 +136,18 @@ class QAMemory(Memory):
 
     def query(self, **input):
         input_ids, masks, inds = super().query(**input)
+        input_ids = torch.tensor(input_ids, dtype=torch.long)
+        masks = torch.tensor(masks, dtype=torch.long)
         start_positions = [torch.tensor(start_position, dtype=torch.long)
                            for start_position in self.start_positions[inds]]
         end_positions = [torch.tensor(end_position, dtype=torch.long)
                          for end_position in self.end_positions[inds]]
-        return input_ids, masks, start_positions, end_positions
+        start_positions = torch.tensor(start_positions)
+        end_positions = torch.tensor(end_positions)
+        retval = {
+            "input_ids": input_ids.to(self.device),
+            "attention_mask": masks.to(self.device),
+            "start_positions": start_positions.to(self.device),
+            "end_positions": end_positions.to(self.device)
+        }
+        return retval

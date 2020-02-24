@@ -10,22 +10,22 @@ from ipdb import set_trace as bp
 logger = logging.getLogger(__name__)
 logging.getLogger("pytorch_transformers").setLevel(logging.WARNING)
 
-from memory import Memory
+from memory import Memory, QAMemory, ClassificationMemory
 from settings import parse_train_args, MODEL_CLASSES, init_logging
 from utils import TextClassificationDataset, DynamicBatchSampler
 from utils import class_dynamic_collate_fn, prepare_inputs
 
 
-def query_neighbors(task_id, args, memory, test_dataset):
-    test_dataloader = DataLoader(test_dataset, num_workers=args.n_workers, collate_fn=dynamic_collate_fn, 
+def classification_query_neighbors(task_id, args, memory, test_dataset):
+    test_dataloader = DataLoader(test_dataset, num_workers=args.n_workers, collate_fn=dynamic_collate_fn,
             batch_sampler=DynamicBatchSampler(test_dataset, args.batch_size, mode="seq"))
 
 
     q_input_ids, q_masks, q_labels = [], [], []
     for step, batch in enumerate(test_dataloader):
-        n_inputs, input_ids, masks, labels = prepare_inputs(batch)
+        n_inputs, input_ids, masks, labels = prepare_inputs(batch, args)
         with torch.no_grad():
-            cur_q_input_ids, cur_q_masks, cur_q_labels = memory.query(input_ids, masks)
+            cur_q_input_ids, cur_q_masks, cur_q_labels = memory.query(**batch)
         q_input_ids.extend(cur_q_input_ids)
         q_masks.extend(cur_q_masks)
         q_labels.extend(cur_q_labels)
@@ -38,25 +38,17 @@ def query_neighbors(task_id, args, memory, test_dataset):
 
 def train_task(args, model, memory, optimizer, train_dataset, valid_dataset):
 
-    # train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, num_workers=args.n_workers,
-    #                               shuffle=not args.reproduce, collate_fn=dynamic_collate_fn)
-    train_dataloader = DataLoader(train_dataset, num_workers=args.n_workers, collate_fn=dynamic_collate_fn, 
-            batch_sampler=DynamicBatchSampler(train_dataset, args.batch_size, mode=args.sampler_choice))
+    train_dataloader = DataLoader(train_dataset, num_workers=args.n_workers, batch_size=args.batch_size)
     # if valid_dataset:
     #     valid_dataloader = DataLoader(valid_dataset, batch_size=args.batch_size * 6,
     #                                   num_workers=args.n_workers, collate_fn=dynamic_collate_fn)
-    # model.zero_grad()
     tot_epoch_loss, tot_n_inputs = 0, 0
 
     def update_parameters(loss):
         model.zero_grad()
         loss.backward()
-        # torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
-        # scheduler.step()
         optimizer.step()
-        # model.zero_grad()
-    
-    from ipdb import set_trace as bp
+
     for step, batch in enumerate(train_dataloader):
         model.train()
         n_inputs = len(batch)
@@ -76,11 +68,9 @@ def train_task(args, model, memory, optimizer, train_dataset, valid_dataset):
 
         if args.replay_interval >= 1 and (step+1) % args.replay_interval == 0:
             torch.cuda.empty_cache()
-            # del loss, input_ids, masks, labels
             input_ids, masks, labels = memory.sample(tot_n_inputs // (step + 1))
             loss = model(input_ids=input_ids, attention_mask=masks, labels=labels)[0]
             update_parameters(loss)
-
 
     logger.info("Finsih training, avg loss: {:.3f}".format(tot_epoch_loss/tot_n_inputs))
     assert tot_n_inputs == len(train_dataset) == args.n_train
@@ -100,16 +90,8 @@ def main():
     config_save_path = os.path.join(args.output_dir, 'config')
     model_config.to_json_file(config_save_path)
     model = model_class.from_pretrained(args.model_name, config=model_config).cuda()
-    memory = Memory(args)
-    
-    no_decay = ['bias', 'LayerNorm.weight']
-    optimizer_grouped_parameters = [
-        {'params': [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)], 'weight_decay': args.weight_decay},
-        {'params': [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
-    ]
-    optimizer = optim.Adam(optimizer_grouped_parameters, lr=args.learning_rate, eps=args.adam_epsilon)
-    # scheduler = WarmupLinearSchedule(optimizer, warmup_steps=args.warmup_steps, t_total=len(args.tasks) * args.n_train//args.batch_size)
-
+    memory = QAMemory(args) if args.task == "qa" else ClassificationMemory(args)
+    optimizer = optim.Adam(model.parameters(), lr=args.learning_rate, eps=args.adam_epsilon)
 
     for task_id, task in enumerate(args.tasks):
         logger.info("Start parsing {} train data...".format(task))
@@ -128,7 +110,6 @@ def main():
         torch.save(model.state_dict(), model_save_path)
         pickle.dump(memory, open(os.path.join(args.output_dir, 'memory-{}'.format(task_id)), 'wb'))
 
-
     del model
     memory.build_tree()
 
@@ -137,7 +118,8 @@ def main():
         test_dataset = TextClassificationDataset(task, "test", args, tokenizer)
         pickle.dump(test_dataset, open(os.path.join(args.output_dir, 'test_dataset-{}'.format(task_id)), 'wb'))
         logger.info("Start querying {}...".format(task))
-        query_neighbors(task_id, args, memory, test_dataset)
+        if 'class' in args.task:
+            classification_query_neighbors(task_id, args, memory, test_dataset)
 
 
 if __name__ == "__main__":

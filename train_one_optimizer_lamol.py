@@ -10,10 +10,10 @@ from ipdb import set_trace as bp
 logger = logging.getLogger(__name__)
 logging.getLogger("pytorch_transformers").setLevel(logging.WARNING)
 
-from memory import Memory
-from settings import parse_train_args, model_classes, init_logging
-from utils import TextClassificationDataset, DynamicBatchSampler
-from utils import dynamic_collate_fn, prepare_inputs
+from memory_lamol import Memory
+from settings_lamol import parse_train_args, model_classes, init_logging
+from utils_lamol import TextClassificationDataset, DynamicBatchSampler
+from utils_lamol import dynamic_collate_fn, prepare_inputs
 
 
 def query_neighbors(task_id, args, memory, test_dataset):
@@ -94,6 +94,7 @@ def train_task(args, model, memory, optimizer, train_dataset, valid_dataset):
     # del train_dataset
     logger.info("Finsih training, avg loss: {:.3f}".format(tot_epoch_loss/tot_n_inputs))
     assert tot_n_inputs == len(train_dataset) == args.n_train
+
 
 def main():
     args = parse_train_args()
