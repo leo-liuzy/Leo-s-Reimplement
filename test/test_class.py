@@ -129,8 +129,8 @@ def test_task(task_id, args, model, test_dataset):
         plot_acc_and_loss(accs=cur_accs, losses=cur_losses,
                           file_name=f"{args.output_dir}/lr{args.adapt_lr}_metrics_against_adapt_step_"
                                     f"plot_{task_id}_step{args.adapt_steps}")
-        logger.info("test loss: {:.3f} , test acc: {:.3f}".format(
-            cur_losses.mean(axis=0)[-1], cur_accs.mean(axis=0)[-1]))
+        logger.info(f"test loss: {cur_losses.mean(axis=0)[-1]:.3f} , "
+                    f"test acc: {cur_accs.mean(axis=0)[-1]:.3f}")
         return cur_accs.mean(axis=0), cur_losses.mean(axis=0)
 
     else:
@@ -168,17 +168,18 @@ def main():
     init_logging(os.path.join(args.output_dir, args.test_log_filename))
     logger.info("args: " + str(args))
 
-    config_class, model_class, args.tokenizer_class = model_classes[args.model_type]
+    config_class, model_class, args.tokenizer_class = MODEL_CLASSES[args.model_type]
     model_config = config_class.from_pretrained(args.model_name, num_labels=args.n_labels, hidden_dropout_prob=0,
                                                 attention_probs_dropout_prob=0)
     save_model_path = os.path.join(args.output_dir, f'checkpoint-{len(args.tasks) - 1}')
     model = model_class.from_pretrained(save_model_path, config=model_config).to(args.devices[0])
+    model = torch.nn.DataParallel(model, device_ids=args.device_ids)
 
     avg_accs = []
     avg_losses = []
     # bp()
     for task_id, task in enumerate(args.tasks):
-        logger.info("Start testing {}...".format(task))
+        logger.info(f"Start testing {task}...")
         test_dataset = pickle.load(open(os.path.join(args.output_dir, f'test_dataset-{task_id}'), 'rb'))
         task_loss, task_acc = test_task(task_id, args, model, test_dataset)
         avg_accs.append(task_acc)
@@ -190,11 +191,11 @@ def main():
     # plot_acc_and_loss(accs=avg_accs, losses=avg_losses,
     #        file_name=f"{args.output_dir}/lr{args.adapt_lr}_metrics_against_adapt_step_plot_avg_steps{args.adapt_steps}")
     if args.adapt_steps >= 1:
-        logger.info("Average acc: {:.3f}".format(avg_accs.mean(axis=0)))
-        logger.info("Average loss: {:.3f}".format(avg_losses.mean(axis=0)))
+        logger.info(f"Average acc: {avg_accs.mean(axis=0) :.3f}")
+        logger.info(f"Average loss: {avg_losses.mean(axis=0) :.3f}")
     else:
-        logger.info("Average acc: {:.3f}".format(avg_accs.mean()))
-        logger.info("Average loss: {:.3f}".format(avg_losses.mean()))
+        logger.info(f"Average acc: {avg_accs.mean():.3f}")
+        logger.info(f"Average loss: {avg_losses.mean():.3f}")
 
 
 if __name__ == "__main__":

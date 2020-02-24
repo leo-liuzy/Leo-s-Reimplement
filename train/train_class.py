@@ -28,10 +28,10 @@ def query_neighbors(task_id, args, memory, test_dataset):
         q_masks.extend(cur_q_masks)
         q_labels.extend(cur_q_labels)
         if (step + 1) % args.logging_steps == 0:
-            logging.info("Queried {} examples".format(len(q_masks)))
-    pickle.dump(q_input_ids, open(os.path.join(args.output_dir, 'q_input_ids-{}'.format(task_id)), 'wb'))
-    pickle.dump(q_masks, open(os.path.join(args.output_dir, 'q_masks-{}'.format(task_id)), 'wb'))
-    pickle.dump(q_labels, open(os.path.join(args.output_dir, 'q_labels-{}'.format(task_id)), 'wb'))
+            logging.info(f"Queried {len(q_masks)} examples")
+    pickle.dump(q_input_ids, open(os.path.join(args.output_dir, f'q_input_ids-{task_id}'), 'wb'))
+    pickle.dump(q_masks, open(os.path.join(args.output_dir, f'q_masks-{task_id}'), 'wb'))
+    pickle.dump(q_labels, open(os.path.join(args.output_dir, f'q_labels-{task_id}'), 'wb'))
 
 
 def train_task(args, model, memory, optimizer, train_dataset, valid_dataset=None):
@@ -59,9 +59,10 @@ def train_task(args, model, memory, optimizer, train_dataset, valid_dataset=None
 
         del loss
         if (step + 1) % args.logging_steps == 0:
-            logger.info("progress: {:.2f} , step: {} , lr: {:.2E} , avg batch size: {:.1f} , avg loss: {:.3f}".format(
-                tot_n_inputs / args.n_train, step + 1, optimizer.param_groups[0]['lr'], tot_n_inputs // (step + 1),
-                tot_epoch_loss / tot_n_inputs))
+            logger.info(f"progress: {tot_n_inputs / args.n_train:.2f} , step: {step + 1} , "
+                        f"lr: {optimizer.param_groups[0]['lr']:.2E} , "
+                        f"avg batch size: {tot_n_inputs // (step + 1):.1f} , "
+                        f"avg loss: {tot_epoch_loss / tot_n_inputs:.3f}")
 
         if args.replay_interval >= 1 and (step + 1) % (args.replay_interval // args.batch_size) == 0:
             torch.cuda.empty_cache()
@@ -82,7 +83,7 @@ def train_task(args, model, memory, optimizer, train_dataset, valid_dataset=None
         torch.cuda.empty_cache()
 
     # del train_dataset
-    logger.info("Finsih training, avg loss: {:.3f}".format(tot_epoch_loss / tot_n_inputs))
+    logger.info(f"Finsih training, avg loss: {tot_epoch_loss / tot_n_inputs :.3f}")
     assert tot_n_inputs == len(train_dataset) == args.n_train
 
 
@@ -92,7 +93,7 @@ def main():
     init_logging(os.path.join(args.output_dir, 'log_train.txt'))
     logger.info("args: " + str(args))
 
-    logger.info("Initializing main {} model".format(args.model_name))
+    logger.info(f"Initializing main {args.model_name} model")
     config_class, model_class, args.tokenizer_class = MODEL_CLASSES[args.model_type]
     tokenizer = args.tokenizer_class.from_pretrained(args.model_name)
 
@@ -105,31 +106,31 @@ def main():
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate, eps=args.adam_epsilon)
 
     for task_id, task in enumerate(args.tasks):
-        logger.info("Start parsing {} train data...".format(task))
+        logger.info(f"Start parsing {task} train data...")
         train_dataset = TextClassificationDataset(task, "train", args, tokenizer)
 
-        logger.info("Max length: {}...".format(train_dataset.max_len))
+        logger.info(f"Max length: {train_dataset.max_len}...")
         if args.valid_ratio > 0:
-            logger.info("Start parsing {} valid data...".format(task))
+            logger.info(f"Start parsing {task} valid data...")
             valid_dataset = TextClassificationDataset(task, "valid", args, tokenizer)
         else:
             valid_dataset = None
 
-        logger.info("Start training {}...".format(task))
+        logger.info(f"Start training {task}...")
         train_task(args, model, memory, optimizer, train_dataset, valid_dataset)
         del train_dataset
-        model_save_path = os.path.join(args.output_dir, 'checkpoint-{}'.format(task_id))
+        model_save_path = os.path.join(args.output_dir, f'checkpoint-{task_id}')
         torch.save(model.state_dict(), model_save_path)
-        pickle.dump(memory, open(os.path.join(args.output_dir, 'memory-{}'.format(task_id)), 'wb'))
+        pickle.dump(memory, open(os.path.join(args.output_dir, f'memory-{task_id}'), 'wb'))
 
     del model
     memory.build_tree()
 
     for task_id, task in enumerate(args.tasks):
-        logger.info("Start parsing {} test data...".format(task))
+        logger.info(f"Start parsing {task} test data...")
         test_dataset = TextClassificationDataset(task, "test", args, tokenizer)
-        pickle.dump(test_dataset, open(os.path.join(args.output_dir, 'test_dataset-{}'.format(task_id)), 'wb'))
-        logger.info("Start querying {}...".format(task))
+        pickle.dump(test_dataset, open(os.path.join(args.output_dir, f'test_dataset-{task_id}'), 'wb'))
+        logger.info(f"Start querying {task}...")
         query_neighbors(task_id, args, memory, test_dataset)
 
 

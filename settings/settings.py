@@ -112,7 +112,7 @@ def parse_train_args():
         if args.overwrite:
             choice = 'y'
         else:
-            choice = input("Output directory ({}) exists! Remove? ".format(args.output_dir))
+            choice = input(f"Output directory ({args.output_dir}) exists! Remove? ")
         if choice.lower()[0] == 'y':
             shutil.rmtree(args.output_dir)
             os.makedirs(args.output_dir)
@@ -123,7 +123,7 @@ def parse_train_args():
 
     tmp_train_log_file = os.path.join(args.output_dir, args.train_log_filename)
     if os.path.exists(tmp_train_log_file):
-        choice = input("Train log ({}) exists! Remove? ".format(args.train_log_filename))
+        choice = input(f"Train log ({args.train_log_filename}) exists! Remove? ")
         if choice.lower()[0] == 'y':
             os.remove(tmp_train_log_file)
         else:
@@ -155,7 +155,7 @@ def parse_test_args():
 
     tmp_test_log_file = os.path.join(args.output_dir, args.test_log_filename)
     if os.path.exists(tmp_test_log_file):
-        choice = input("Test log ({}) exists! Remove? ".format(args.test_log_filename))
+        choice = input(f"Test log ({args.test_log_filename}) exists! Remove? ")
         if choice.lower()[0] == 'y':
             os.remove(tmp_test_log_file)
         else:
@@ -178,7 +178,7 @@ class TimeFilter(logging.Filter):
           last = record.relativeCreated
 
         delta = record.relativeCreated/1000 - last/1000
-        record.relative = "{:.3f}".format(delta)
+        record.relative = f"{delta:.3f}"
         record.uptime = str(datetime.timedelta(seconds=record.relativeCreated//1000))
         self.last = record.relativeCreated
         return True
