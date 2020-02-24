@@ -34,7 +34,7 @@ label_offsets = {
 
 def set_device(args):
     if args.num_gpu > 0 and torch.cuda.is_available():
-        args.device_id = GPUtil.getFirstAvailable(maxLoad=0.05, maxMemory=0.05)[:args.num_gpu]
+        args.device_ids = GPUtil.getFirstAvailable(maxLoad=0.05, maxMemory=0.05)[:args.num_gpu]
         args.devices = [torch.device(f"cuda:{device_id}") for device_id in args.device_ids]
     else:
         args.devices = [torch.device("cpu")]

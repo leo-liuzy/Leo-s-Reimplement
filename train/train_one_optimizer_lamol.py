@@ -8,10 +8,10 @@ from torch import optim
 logger = logging.getLogger(__name__)
 logging.getLogger("pytorch_transformers").setLevel(logging.WARNING)
 
-from memory.memory_lamol import Memory
-from settings_lamol import parse_train_args, model_classes, init_logging
-from utils_lamol import TextClassificationDataset, DynamicBatchSampler
-from utils_lamol import dynamic_collate_fn, prepare_inputs
+from memory import Memory
+from settings import parse_train_args, model_classes, init_logging
+from utils import TextClassificationDataset, DynamicBatchSampler
+from utils import dynamic_collate_fn, prepare_inputs
 
 
 def query_neighbors(task_id, args, memory, test_dataset):
@@ -21,7 +21,7 @@ def query_neighbors(task_id, args, memory, test_dataset):
 
     q_input_ids, q_masks, q_labels = [], [], []
     for step, batch in enumerate(test_dataloader):
-        n_inputs, input_ids, masks, labels = prepare_inputs(batch)
+        n_inputs, input_ids, masks, labels = prepare_inputs(args, batch)
         with torch.no_grad():
             cur_q_input_ids, cur_q_masks, cur_q_labels = memory.query(input_ids, masks)
         q_input_ids.extend(cur_q_input_ids)
@@ -56,7 +56,7 @@ def train_task(args, model, memory, optimizer, train_dataset, valid_dataset):
 
     for step, batch in enumerate(train_dataloader):
         model.train()
-        n_inputs, input_ids, masks, labels = prepare_inputs(batch)
+        n_inputs, input_ids, masks, labels = prepare_inputs(args, batch)
         memory.add(input_ids, masks, labels)
         loss = model(input_ids=input_ids, attention_mask=masks, labels=labels)[0]
         update_parameters(loss)
@@ -106,7 +106,7 @@ def main():
     model_config = config_class.from_pretrained(args.model_name, num_labels=args.n_labels)
     config_save_path = os.path.join(args.output_dir, 'config')
     model_config.to_json_file(config_save_path)
-    model = model_class.from_pretrained(args.model_name, config=model_config).cuda()
+    model = model_class.from_pretrained(args.model_name, config=model_config).to(args.devices[0])
     memory = Memory(args)
     
     # no_decay = ['bias', 'LayerNorm.weight']

@@ -23,9 +23,13 @@ label_offsets = {
 }
 
 
-def set_device_id(args):
-    args.device_id = GPUtil.getFirstAvailable(maxLoad=0.05, maxMemory=0.05)[0]
-    torch.cuda.set_device(args.device_id)
+def set_device(args):
+    if args.num_gpu > 0 and torch.cuda.is_available():
+        args.device_ids = GPUtil.getFirstAvailable(maxLoad=0.05, maxMemory=0.05)[:args.num_gpu]
+        args.devices = [torch.device(f"cuda:{device_id}") for device_id in args.device_ids]
+    else:
+        args.devices = [torch.device("cpu")]
+        args.device_ids = [-1]
 
 
 def seed_randomness(args):
@@ -45,6 +49,7 @@ def parse_train_args():
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--learning_rate", type=float, default=3e-5)
     parser.add_argument("--logging_steps", type=int, default=200)
+    parser.add_argument("--num_gpu", nargs='+', type=int, default=-1)
     parser.add_argument("--max_grad_norm", type=float, default=1.0)
     parser.add_argument("--model_name", type=str, default="bert-base-uncased")
     parser.add_argument("--model_type", type=str, default="bert", help="Model type selected in the list: " + ", ".join(model_classes.keys()))

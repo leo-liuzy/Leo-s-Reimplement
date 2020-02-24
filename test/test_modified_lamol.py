@@ -18,9 +18,9 @@ from ipdb import set_trace as bp
 
 def local_adapt(input_ids, label, tmp_model, q_input_ids, q_masks, q_labels, args, org_params):
 
-    q_input_ids = q_input_ids.cuda().detach()
-    q_masks = q_masks.cuda().detach()
-    q_labels = q_labels.cuda().detach()
+    q_input_ids = q_input_ids.to(args.devices[0]).detach()
+    q_masks = q_masks.to(args.devices[0]).detach()
+    q_labels = q_labels.to(args.devices[0]).detach()
 
     # optimizer = optim.SGD(tmp_model.parameters(), lr=args.adapt_lr, momentum=0.9)
     optimizer = torch.optim.Adam(tmp_model.parameters(), lr=args.adapt_lr, eps=args.adam_epsilon)
@@ -108,8 +108,8 @@ def test_task(task_id, args, model, test_dataset):
 
         for i in range(test_size):
             labels, input_ids = test_dataset[i]
-            labels = torch.tensor(np.expand_dims(labels, 0), dtype=torch.long).cuda()
-            input_ids = torch.tensor(np.expand_dims(input_ids, 0), dtype=torch.long).cuda()
+            labels = torch.tensor(np.expand_dims(labels, 0), dtype=torch.long).to(args.devices[0])
+            input_ids = torch.tensor(np.expand_dims(input_ids, 0), dtype=torch.long).to(args.devices[0])
             accs, losses = local_adapt(input_ids, labels, copy.deepcopy(model), q_input_ids[i], q_masks[i], q_labels[i], args, org_params)
             if len(cur_accs) == len(cur_losses) == 0:
                 cur_losses = np.array([losses])
@@ -135,7 +135,7 @@ def test_task(task_id, args, model, test_dataset):
                                      batch_sampler=DynamicBatchSampler(test_dataset, args.batch_size))
         tot_n_inputs = 0
         for step, batch in enumerate(test_dataloader):
-            n_inputs, input_ids, masks, labels = prepare_inputs(batch)
+            n_inputs, input_ids, masks, labels = prepare_inputs(args, batch)
             tot_n_inputs += n_inputs
             # bp()
             with torch.no_grad():
@@ -168,7 +168,7 @@ def main():
     config_class, model_class, args.tokenizer_class = model_classes[args.model_type]
     model_config = config_class.from_pretrained(args.model_name, num_labels=args.n_labels, hidden_dropout_prob=0, attention_probs_dropout_prob=0)
     save_model_path = os.path.join(args.output_dir, 'checkpoint-{}'.format(len(args.tasks)-1))
-    model = model_class.from_pretrained(save_model_path, config=model_config).cuda()
+    model = model_class.from_pretrained(save_model_path, config=model_config).to(args.devices[0])
 
     avg_accs = []
     avg_losses = []

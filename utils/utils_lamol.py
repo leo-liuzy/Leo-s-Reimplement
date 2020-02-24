@@ -10,8 +10,8 @@ import torch
 from settings import label_offsets
 
 
-def prepare_inputs(batch):
-    input_ids, masks, labels = tuple(b.cuda() for b in batch)
+def prepare_inputs(args, batch):
+    input_ids, masks, labels = tuple(b.to(args.devices[0]) for b in batch)
     return batch[0].shape[0], input_ids, masks, labels
 
 

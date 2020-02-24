@@ -75,7 +75,7 @@ def test_task(task_id, args, model, test_dataset):
                                      batch_sampler=DynamicBatchSampler(test_dataset, args.batch_size * 4))
         tot_n_inputs = 0
         for step, batch in enumerate(test_dataloader):
-            n_inputs, input_ids, masks, labels = prepare_inputs(batch)
+            n_inputs, input_ids, masks, labels = prepare_inputs(args, batch)
             tot_n_inputs += n_inputs
             with torch.no_grad():
                 model.eval()
