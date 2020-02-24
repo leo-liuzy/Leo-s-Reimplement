@@ -49,7 +49,7 @@ def parse_train_args():
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--learning_rate", type=float, default=3e-5)
     parser.add_argument("--logging_steps", type=int, default=200)
-    parser.add_argument("--num_gpu", nargs='+', type=int, default=-1)
+    parser.add_argument("--num_gpu", nargs='+', type=int, default=0)
     parser.add_argument("--max_grad_norm", type=float, default=1.0)
     parser.add_argument("--model_name", type=str, default="bert-base-uncased")
     parser.add_argument("--model_type", type=str, default="bert", help="Model type selected in the list: " + ", ".join(model_classes.keys()))
@@ -110,6 +110,7 @@ def parse_test_args():
     parser.add_argument("--logging_steps", type=int, default=20)
     parser.add_argument("--test_log_filename", type=str, default="log_test.txt")
     parser.add_argument('--seed', type=int, default=SEED)
+    parser.add_argument("--num_gpu", nargs='+', type=int, default=0)
 
     args = parser.parse_args()
     args.test_log_filename = aug_log_file(args, args.test_log_filename)
@@ -121,7 +122,7 @@ def parse_test_args():
         else:
             raise ValueError("Test log exists!")
 
-    set_device_id(args)
+    set_device(args)
     return args
 
 def aug_log_file(args, filename):
