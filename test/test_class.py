@@ -19,9 +19,9 @@ from ipdb import set_trace as bp
 
 
 def local_adapt(args, model, input_ids, label, q_input_ids, q_masks, q_labels, org_params):
-    q_input_ids = q_input_ids.cuda().detach()
-    q_masks = q_masks.cuda().detach()
-    q_labels = q_labels.cuda().detach()
+    q_input_ids = q_input_ids.detach().to(args.devices[0])
+    q_masks = q_masks.detach().to(args.devices[0])
+    q_labels = q_labels.detach().to(args.devices[0])
 
     optimizer = torch.optim.Adam(model.parameters(), lr=args.adapt_lr, eps=args.adam_epsilon)
 
@@ -105,8 +105,8 @@ def test_task(task_id, args, model, test_dataset):
 
         for i in range(test_size):
             labels, input_ids = test_dataset[i]
-            labels = torch.tensor(np.expand_dims(labels, 0), dtype=torch.long).cuda()
-            input_ids = torch.tensor(np.expand_dims(input_ids, 0), dtype=torch.long).cuda()
+            labels = torch.tensor(np.expand_dims(labels, 0), dtype=torch.long).to(args.devices[0])
+            input_ids = torch.tensor(np.expand_dims(input_ids, 0), dtype=torch.long).to(args.devices[0])
             accs, losses = local_adapt(args, copy.deepcopy(model),
                                        input_ids, labels, q_input_ids[i], q_masks[i], q_labels[i],
                                        org_params)
@@ -128,7 +128,7 @@ def test_task(task_id, args, model, test_dataset):
                         "wb"))
         plot_acc_and_loss(accs=cur_accs, losses=cur_losses,
                           file_name=f"{args.output_dir}/lr{args.adapt_lr}_metrics_against_adapt_step_"
-                                    f"plot_{task_id}_ntest{args.n_test}_step{args.adapt_steps}")
+                                    f"plot_{task_id}_step{args.adapt_steps}")
         logger.info("test loss: {:.3f} , test acc: {:.3f}".format(
             cur_losses.mean(axis=0)[-1], cur_accs.mean(axis=0)[-1]))
         return cur_accs.mean(axis=0), cur_losses.mean(axis=0)
@@ -138,7 +138,7 @@ def test_task(task_id, args, model, test_dataset):
                                      batch_sampler=DynamicBatchSampler(test_dataset, args.batch_size))
         tot_n_inputs = 0
         for step, batch in enumerate(test_dataloader):
-            n_inputs, input_ids, masks, labels = prepare_inputs(batch)
+            n_inputs, input_ids, masks, labels = prepare_inputs(args, batch)
             tot_n_inputs += n_inputs
             # bp()
             with torch.no_grad():
@@ -172,7 +172,7 @@ def main():
     model_config = config_class.from_pretrained(args.model_name, num_labels=args.n_labels, hidden_dropout_prob=0,
                                                 attention_probs_dropout_prob=0)
     save_model_path = os.path.join(args.output_dir, f'checkpoint-{len(args.tasks) - 1}')
-    model = model_class.from_pretrained(save_model_path, config=model_config).cuda()
+    model = model_class.from_pretrained(save_model_path, config=model_config).to(args.devices[0])
 
     avg_accs = []
     avg_losses = []
@@ -188,9 +188,13 @@ def main():
     avg_losses = np.array(avg_losses)
 
     # plot_acc_and_loss(accs=avg_accs, losses=avg_losses,
-    #        file_name=f"{args.output_dir}/lr{args.adapt_lr}_metrics_against_adapt_step_plot_avg_ntest{args.n_test}_steps{args.adapt_steps}")
-    # logger.info("Average acc: {:.3f}".format(avg_accs.mean(axis=0)[-1]))
-    # logger.info("Average loss: {:.3f}".format(avg_losses.mean(axis=0)[-1]))
+    #        file_name=f"{args.output_dir}/lr{args.adapt_lr}_metrics_against_adapt_step_plot_avg_steps{args.adapt_steps}")
+    if args.adapt_steps >= 1:
+        logger.info("Average acc: {:.3f}".format(avg_accs.mean(axis=0)))
+        logger.info("Average loss: {:.3f}".format(avg_losses.mean(axis=0)))
+    else:
+        logger.info("Average acc: {:.3f}".format(avg_accs.mean()))
+        logger.info("Average loss: {:.3f}".format(avg_losses.mean()))
 
 
 if __name__ == "__main__":

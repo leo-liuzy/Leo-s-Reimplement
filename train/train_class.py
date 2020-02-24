@@ -10,7 +10,7 @@ from math import ceil
 logger = logging.getLogger(__name__)
 logging.getLogger("pytorch_transformers").setLevel(logging.WARNING)
 
-from memory.memory_class import Memory
+from memory.memory_class import ClassMemory
 from settings.settings import parse_train_args, MODEL_CLASSES, init_logging
 from utils.utils_class import TextClassificationDataset, DynamicBatchSampler, dynamic_collate_fn, prepare_inputs
 
@@ -21,7 +21,7 @@ def query_neighbors(task_id, args, memory, test_dataset):
 
     q_input_ids, q_masks, q_labels = [], [], []
     for step, batch in enumerate(test_dataloader):
-        n_inputs, input_ids, masks, labels = prepare_inputs(batch)
+        n_inputs, input_ids, masks, labels = prepare_inputs(args, batch)
         with torch.no_grad():
             cur_q_input_ids, cur_q_masks, cur_q_labels = memory.query(input_ids, masks)
         q_input_ids.extend(cur_q_input_ids)
@@ -34,9 +34,7 @@ def query_neighbors(task_id, args, memory, test_dataset):
     pickle.dump(q_labels, open(os.path.join(args.output_dir, 'q_labels-{}'.format(task_id)), 'wb'))
 
 
-def train_task(args, model, memory, optimizer, train_dataset, valid_dataset):
-    # train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, num_workers=args.n_workers,
-    #                               shuffle=not args.reproduce, collate_fn=dynamic_collate_fn)
+def train_task(args, model, memory, optimizer, train_dataset, valid_dataset=None):
     train_dataloader = DataLoader(train_dataset, num_workers=args.n_workers, collate_fn=dynamic_collate_fn,
                                   batch_sampler=DynamicBatchSampler(train_dataset, args.batch_size,
                                                                     mode=args.sampler_choice))
@@ -46,20 +44,19 @@ def train_task(args, model, memory, optimizer, train_dataset, valid_dataset):
     # model.zero_grad()
     tot_epoch_loss, tot_n_inputs = 0, 0
 
-    def update_parameters(loss):
-        model.zero_grad()
-        loss.backward()
-        optimizer.step()
-
     for step, batch in enumerate(train_dataloader):
         model.train()
-        n_inputs, input_ids, masks, labels = prepare_inputs(batch)
+        n_inputs, input_ids, masks, labels = prepare_inputs(args, batch)
         if np.random.rand() < args.write_ratio:
             memory.add(input_ids, masks, labels)
         loss = model(input_ids=input_ids, attention_mask=masks, labels=labels)[0]
-        update_parameters(loss)
+
+        model.zero_grad()
+        loss.backward()
+        optimizer.step()
         tot_n_inputs += n_inputs
         tot_epoch_loss += loss.item() * n_inputs
+
         del loss
         if (step + 1) % args.logging_steps == 0:
             logger.info("progress: {:.2f} , step: {} , lr: {:.2E} , avg batch size: {:.1f} , avg loss: {:.3f}".format(
@@ -77,7 +74,11 @@ def train_task(args, model, memory, optimizer, train_dataset, valid_dataset):
                 mask = masks[l:u]
                 label = labels[l:u]
                 loss = model(input_ids=input_id, attention_mask=mask, labels=label)[0]
-                update_parameters(loss)
+
+                model.zero_grad()
+                loss.backward()
+                optimizer.step()
+
         torch.cuda.empty_cache()
 
     # del train_dataset
@@ -98,14 +99,9 @@ def main():
     model_config = config_class.from_pretrained(args.model_name, num_labels=args.n_labels)
     config_save_path = os.path.join(args.output_dir, 'config')
     model_config.to_json_file(config_save_path)
-    model = model_class.from_pretrained(args.model_name, config=model_config).cuda()
-    memory = Memory(args)
+    model = model_class.from_pretrained(args.model_name, config=model_config).to(args.devices[0])
+    memory = ClassMemory(args)
 
-    # no_decay = ['bias', 'LayerNorm.weight']
-    # optimizer_grouped_parameters = [
-    #  {'params': [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)], 'weight_decay': 0.0},
-    #  {'params': [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
-    # ]
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate, eps=args.adam_epsilon)
 
     for task_id, task in enumerate(args.tasks):
