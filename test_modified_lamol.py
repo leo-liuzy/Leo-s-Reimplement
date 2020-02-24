@@ -37,6 +37,7 @@ def local_adapt(input_ids, label, tmp_model, q_input_ids, q_masks, q_labels, arg
     losses = []
     for step in range(args.adapt_steps + 1):
         # make predictions
+        # bp()
         loss, logits = predict(tmp_model, input_ids, label)
         losses.append(loss)
         accs.append(int(np.argmax(logits, axis=1) == label.detach().cpu().numpy()))
@@ -45,12 +46,18 @@ def local_adapt(input_ids, label, tmp_model, q_input_ids, q_masks, q_labels, arg
         # make 1 local step
         tmp_model.train()
         params = torch.cat([torch.reshape(param, [-1]) for param in tmp_model.parameters()], 0)
-        output = tmp_model(input_ids=q_input_ids, attention_mask=q_masks, labels=q_labels)[:2]
-        loss = output[0] + args.adapt_lambda * torch.sum((org_params - params) ** 2)
-        tmp_model.zero_grad()
-        loss.backward()
-        # torch.nn.utils.clip_grad_norm_(tmp_model.parameters(), args.max_grad_norm)
-        optimizer.step()
+        from math import ceil
+        num_batch = ceil(args.n_neighbors / args.batch_size)
+        for i in range(num_batch):
+            # bp()
+            lower = i * args.batch_size
+            upper = (i + 1) * args.batch_size
+            output = tmp_model(input_ids=q_input_ids[lower:upper], attention_mask=q_masks[lower:upper], labels=q_labels[lower:upper])[:2]
+            loss = output[0] + args.adapt_lambda * torch.sum((org_params - params) ** 2)
+            tmp_model.zero_grad()
+            loss.backward()
+            # torch.nn.utils.clip_grad_norm_(tmp_model.parameters(), args.max_grad_norm)
+            optimizer.step()
         
     assert len(accs) == len(losses) == args.adapt_steps + 1
     return accs, losses
@@ -81,6 +88,10 @@ def test_task(task_id, args, model, test_dataset):
     # bp() 
     if args.fp16_test:
         model = model.half()
+    
+    def update_metrics(loss, logits, cur_loss, cur_acc):
+        preds = np.argmax(logits, axis=1)
+        return cur_loss + loss, cur_acc + np.sum(preds == labels.detach().cpu().numpy())
 
     test_size = args.n_test
     cur_loss, cur_acc = 0, 0
@@ -111,35 +122,37 @@ def test_task(task_id, args, model, test_dataset):
                     i+1, test_size, cur_losses.mean(axis=0)[-1],
                     cur_accs.mean(axis=0)[-1]))
         pickle.dump({"accuracy": cur_accs, "loss": cur_losses},
-                open(f"{args.output_dir}/lr{args.adapt_lr}_metrics_against_adapt_step_{task_id}_ntest{args.n_test}", "wb"))
+                open(f"{args.output_dir}/lr{args.adapt_lr}_metrics_against_adapt_step_{task_id}_ntest{args.n_test}_step{args.adapt_steps}", "wb"))
         plot_acc_and_loss(accs=cur_accs, losses=cur_losses,
-                file_name=f"{args.output_dir}/lr{args.adapt_lr}_metrics_against_adapt_step_plot_{task_id}")
+                file_name=f"{args.output_dir}/lr{args.adapt_lr}_metrics_against_adapt_step_plot_{task_id}_ntest{args.n_test}_step{args.adapt_steps}")
         logger.info("test loss: {:.3f} , test acc: {:.3f}".format(
             cur_losses.mean(axis=0)[-1], cur_accs.mean(axis=0)[-1]))
         return cur_accs.mean(axis=0), cur_losses.mean(axis=0)
 
     else:
         test_dataloader = DataLoader(test_dataset, num_workers=args.n_workers, collate_fn=dynamic_collate_fn,
-                                     batch_sampler=DynamicBatchSampler(test_dataset, args.batch_size * 4))
+                                     batch_sampler=DynamicBatchSampler(test_dataset, args.batch_size))
         tot_n_inputs = 0
         for step, batch in enumerate(test_dataloader):
             n_inputs, input_ids, masks, labels = prepare_inputs(batch)
             tot_n_inputs += n_inputs
+            # bp()
             with torch.no_grad():
                 model.eval()
                 outputs = model(input_ids=input_ids, attention_mask=masks, labels=labels)
                 loss = outputs[0].item()
                 logits = outputs[1].detach().cpu().numpy()
+            # bp()
             cur_loss, cur_acc = update_metrics(loss*n_inputs, logits, cur_loss, cur_acc)
             if (step+1) % args.logging_steps == 0:
                 logging.info("Tested {}/{} examples , test loss: {:.3f} , test acc: {:.3f}".format(
                     tot_n_inputs, len(test_dataset), cur_loss/tot_n_inputs, cur_acc/tot_n_inputs))
         assert tot_n_inputs == len(test_dataset)
-
+        # bp()
 
         logger.info("test loss: {:.3f} , test acc: {:.3f}".format(
             cur_loss / test_size, cur_acc / test_size))
-        return cur_acc / test_size
+        return cur_loss / test_size, cur_acc / test_size
 
 
 def main():
@@ -158,19 +171,21 @@ def main():
 
     avg_accs = []
     avg_losses = []
+    # bp()
     for task_id, task in enumerate(args.tasks):
         logger.info("Start testing {}...".format(task))
         test_dataset = pickle.load(open(os.path.join(args.output_dir, 'test_dataset-{}'.format(task_id)), 'rb'))
-        task_acc, task_loss = test_task(task_id, args, model, test_dataset)
+        task_loss, task_acc = test_task(task_id, args, model, test_dataset)
         avg_accs.append(task_acc)
         avg_losses.append(task_loss)
+        # bp()
     avg_accs = np.array(avg_accs)
     avg_losses = np.array(avg_losses)
 
-    plot_acc_and_loss(accs=avg_accs, losses=avg_losses,
-            file_name=f"{args.output_dir}/lr{args.adapt_lr}_metrics_against_adapt_step_plot_avg")
-    logger.info("Average acc: {:.3f}".format(avg_accs.mean(axis=0)[-1]))
-    logger.info("Average loss: {:.3f}".format(avg_losses.mean(axis=0)[-1]))
+    # plot_acc_and_loss(accs=avg_accs, losses=avg_losses,
+      #        file_name=f"{args.output_dir}/lr{args.adapt_lr}_metrics_against_adapt_step_plot_avg_ntest{args.n_test}_steps{args.adapt_steps}")
+    # logger.info("Average acc: {:.3f}".format(avg_accs.mean(axis=0)[-1]))
+    # logger.info("Average loss: {:.3f}".format(avg_losses.mean(axis=0)[-1]))
 
 
 if __name__ == "__main__":
