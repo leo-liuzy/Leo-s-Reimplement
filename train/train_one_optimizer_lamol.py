@@ -9,9 +9,9 @@ logger = logging.getLogger(__name__)
 logging.getLogger("pytorch_transformers").setLevel(logging.WARNING)
 
 from memory import ClassMemory
-from settings import parse_train_args, model_classes, init_logging
-from utils import TextClassificationDataset, DynamicBatchSampler
-from utils import dynamic_collate_fn, prepare_inputs
+from settings_parallel import parse_train_args, model_classes, init_logging
+from utils_parallel import TextClassificationDataset, DynamicBatchSampler
+from utils_parallel import dynamic_collate_fn, prepare_inputs
 
 
 def query_neighbors(task_id, args, memory, test_dataset):
