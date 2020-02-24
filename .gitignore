@@ -16,3 +16,4 @@ cache/
 
 # python compilations
 **/__pycache__/
+**/.ipynb_checkpoints/
